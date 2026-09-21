@@ -6,7 +6,7 @@ import { getActionSourceHref } from "@/lib/actions/action-config";
 
 describe("Gemba MVP domain", () => {
   it("includes draft, active, and completed manufacturing walks", () => {
-    expect(new Set(GEMBA_SEED_STATE.walks.map((walk) => walk.status))).toEqual(new Set(["Draft", "In Progress", "Completed"]));
+    expect(new Set(GEMBA_SEED_STATE.walks.map((walk) => walk.status))).toEqual(new Set(["Scheduled", "In Progress", "Completed"]));
     expect(new Set(GEMBA_SEED_STATE.observations.map((observation) => observation.type))).toEqual(new Set(["Positive", "Opportunity", "Issue"]));
   });
 

@@ -1,10 +1,10 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- previews are local user-captured data URLs. */
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Camera, Check, ChevronDown, Footprints, ImagePlus, MapPin, Plus, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Footprints, ImagePlus, Lightbulb, MapPin, Mic, Pencil, Plus, ThumbsUp, Users, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { CreateLinkedActionDialog, type LinkedActionContext } from "@/features/actions/create-linked-action-dialog";
 import { OpsFeedback } from "@/components/ops/ops-feedback";
@@ -20,17 +20,20 @@ import FiveSPageHeader from "@/features/five-s/components/FiveSPageHeader";
 import type { MyAction, MyActionEvidence } from "@/features/five-s/types/my-actions";
 import { useActionStore } from "@/lib/actions/action-store";
 import { useCurrentUser } from "@/lib/current-user";
-import { MAX_EVIDENCE_IMAGES, optimizeEvidenceImage } from "@/lib/evidence-images";
+import { MAX_EVIDENCE_IMAGES, optimizeEvidenceImageToBlob } from "@/lib/evidence-images";
+import { deleteGembaPhoto, isGembaPhotoStorageAvailable, saveGembaPhoto } from "@/lib/gemba/gemba-photo-storage";
 import { cn } from "@/lib/utils";
-import { CompactEmpty, GembaStatusBadge, ObservationCard, OBSERVATION_TYPE_STYLE } from "./gemba-components";
+import { CompactEmpty, GembaEvidenceImage, GembaStatusBadge, ObservationCard, OBSERVATION_TYPE_STYLE } from "./gemba-components";
 import { canConductGembaWalk, canViewGembaWalk } from "./gemba-access";
 import { completeGembaWalk, linkGembaAction, saveGembaObservation, startGembaWalk, useGembaStore } from "./gemba-store";
-import type { GembaEvidence, GembaObservation, GembaObservationType, GembaWalk } from "./types";
+import { isEvidencePhotoRequired, type GembaEvidence, type GembaObservation, type GembaObservationType, type GembaVoiceNote, type GembaWalk } from "./types";
+import { VoiceCaptureFlow } from "./voice-capture-flow";
+import { formatGembaZoneLabel } from "./gemba-zone-labels";
 
-const TYPES: Array<{ id: GembaObservationType; hint: string }> = [
-  { id: "Positive", hint: "Good practice" },
-  { id: "Opportunity", hint: "Could be better" },
-  { id: "Issue", hint: "Needs attention" },
+const TYPES: Array<{ id: GembaObservationType; hint: string; icon: LucideIcon }> = [
+  { id: "Positive", hint: "Good practice", icon: ThumbsUp },
+  { id: "Opportunity", hint: "Could be better", icon: Lightbulb },
+  { id: "Issue", hint: "Needs attention", icon: AlertTriangle },
 ];
 
 export default function GembaWalkPage({ walkId }: { walkId: string }) {
@@ -75,79 +78,245 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
     router.push(`/gemba/${walk!.id}`);
   }
 
-  if (walk.status === "Draft") return <PageContainer className="max-w-4xl"><FiveSPageHeader eyebrow="Gemba" title={walk.id} description={`${walk.plant} · ${walk.zone} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} /><Card><CardContent className="grid min-h-64 place-items-center p-6 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-xl bg-primary/[0.08] text-primary"><Footprints className="size-6" /></span><h2 className="mt-4 text-base font-semibold">This walk is saved as a draft</h2><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">Start the walk when the team reaches {walk.zone}. Observation capture will open immediately.</p><Button className="mt-5" onClick={() => { startGembaWalk(walk.id, currentUser); setNotice("Walk started."); }}><Footprints className="size-4" />Start Walk</Button></div></CardContent></Card></PageContainer>;
+  if (walk.status === "Scheduled") return <PageContainer className="max-w-4xl"><FiveSPageHeader eyebrow="Gemba" title={walk.id} description={`${walk.plant} · ${formatGembaZoneLabel(walk.zone)} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} /><Card><CardContent className="grid min-h-64 place-items-center p-6 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-xl bg-primary/[0.08] text-primary"><Footprints className="size-6" /></span><h2 className="mt-4 text-base font-semibold">This walk is scheduled</h2><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">Start the walk when the team reaches {formatGembaZoneLabel(walk.zone)}. Observation capture will open immediately.</p><Button className="mt-5" onClick={() => { startGembaWalk(walk.id, currentUser); setNotice("Walk started."); }}><Footprints className="size-4" />Start Walk</Button></div></CardContent></Card></PageContainer>;
   if (walk.status === "Completed") return <PageContainer className="max-w-4xl"><FiveSPageHeader eyebrow="Gemba" title="Walk completed" description={`${walk.id} was completed. The observations and linked actions remain available in the walk record.`} /><div className="flex gap-2"><Button nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />}>View Walk</Button><Button variant="outline" nativeButton={false} render={<Link href={`/gemba/${walk.id}/report`} />}>View Report</Button></div></PageContainer>;
 
   return <PageContainer className="gemba-active-walk max-w-6xl pb-24 sm:pb-0">
-    <FiveSPageHeader eyebrow="Active Gemba Walk" title={walk.zone} description={`${walk.id} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} actions={<><GembaStatusBadge status={walk.status} /><Button className="hidden sm:inline-flex" onClick={openNew}><Plus className="size-4" />Add Observation</Button><Button variant="outline" onClick={() => setCompleteOpen(true)}><Check className="size-4" />Complete Walk</Button></>} />
+    <FiveSPageHeader eyebrow="Active Gemba Walk" title={formatGembaZoneLabel(walk.zone)} description={`${walk.id} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} actions={<><GembaStatusBadge status={walk.status} /><Button className="hidden sm:inline-flex" onClick={openNew}><Plus className="size-4" />Add Observation</Button><Button variant="outline" onClick={() => setCompleteOpen(true)}><Check className="size-4" />Complete Walk</Button></>} />
 
-    <section className="rounded-xl border bg-card p-3 shadow-sm"><div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center"><div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" />{walk.plant} · {walk.zone}</span><span className="inline-flex items-center gap-1.5"><Users className="size-3.5" />{walk.leadName} + {walk.participants.length} participant{walk.participants.length === 1 ? "" : "s"}</span></div><div className="flex flex-wrap items-center gap-3 text-xs"><strong className="text-sm tabular-nums">{observations.length} Observations</strong>{TYPES.map((type) => <span key={type.id} className="inline-flex items-center gap-1.5 text-muted-foreground"><span className={cn("size-1.5 rounded-full", OBSERVATION_TYPE_STYLE[type.id].dot)} />{counts[type.id]} {type.id}</span>)}<span className="font-medium text-primary">{walk.actionIds.length} Actions</span></div></div></section>
+    <section className="rounded-xl border bg-card p-3 shadow-sm"><div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center"><div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" />{walk.plant} · {formatGembaZoneLabel(walk.zone)}</span><span className="inline-flex items-center gap-1.5"><Users className="size-3.5" />{walk.leadName} + {walk.participants.length} participant{walk.participants.length === 1 ? "" : "s"}</span></div><div className="flex flex-wrap items-center gap-3 text-xs"><strong className="text-sm tabular-nums">{observations.length} Observations</strong>{TYPES.map((type) => <span key={type.id} className="inline-flex items-center gap-1.5 text-muted-foreground"><span className={cn("size-1.5 rounded-full", OBSERVATION_TYPE_STYLE[type.id].dot)} />{counts[type.id]} {type.id}</span>)}<span className="font-medium text-primary">{walk.actionIds.length} Actions</span></div></div></section>
 
     {notice && <div className="flex items-center gap-2"><OpsFeedback tone="success" message={notice} className="flex-1" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setNotice("")} aria-label="Dismiss notification"><X className="size-4" /></Button></div>}
 
     <div className="grid gap-3">{observations.map((observation) => <ObservationCard key={observation.id} observation={observation} action={observation.actionId ? actionMap.get(observation.actionId) : undefined} onEdit={() => openEdit(observation)} onCreateAction={() => openAction(observation)} />)}{observations.length === 0 && <Card className="gap-0"><CompactEmpty title="No observations captured yet" description="Use + Add Observation while walking the area. A title and type are enough to save quickly." action={<Button onClick={openNew}><Plus className="size-4" />Add Observation</Button>} /></Card>}</div>
 
     <div className="mobile-safe-bottom fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:hidden"><Button className="w-full" onClick={openNew}><Plus className="size-4" />Add Observation</Button></div>
-    <ObservationCaptureDialog key={`${editing?.id ?? "new"}-${captureOpen}`} open={captureOpen} onOpenChange={setCaptureOpen} walkId={walk.id} zone={walk.zone} currentUser={currentUser} participants={walk.participants.map((item) => item.name)} observation={editing} onSaved={(observation, createAction) => { setNotice(`${observation.id} ${editing ? "updated" : "saved"}.`); setCaptureOpen(false); setEditing(null); if (createAction) { setLinkedContext(toLinkedContext(walk, observation)); setActionOpen(true); } }} />
+    <ObservationCaptureDialog key={`${editing?.id ?? "new"}-${captureOpen}`} open={captureOpen} onOpenChange={setCaptureOpen} walkId={walk.id} plant={walk.plant} zone={walk.zone} walkPurpose={walk.purpose} currentUser={currentUser} participants={walk.participants.map((item) => item.name)} observation={editing} onSaved={(observation, createAction) => { setNotice(`${observation.id} ${editing ? "updated" : "saved"}.`); setCaptureOpen(false); setEditing(null); if (createAction) { setLinkedContext(toLinkedContext(walk, observation)); setActionOpen(true); } }} />
     <CreateLinkedActionDialog key={linkedContext?.sourceObservationId ?? "no-observation"} open={actionOpen} onOpenChange={setActionOpen} context={linkedContext} onCreated={actionCreated} />
 
-    <Dialog open={completeOpen} onOpenChange={setCompleteOpen}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Review and complete walk</DialogTitle><DialogDescription>Confirm the captured record before closing this Gemba walk.</DialogDescription></DialogHeader><div className="grid gap-4"><div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-muted/[0.18] p-4 text-sm"><Summary label="Plant" value={walk.plant} /><Summary label="Zone" value={walk.zone} /><Summary label="Lead" value={walk.leadName} /><Summary label="Participants" value={String(walk.participants.length)} /><Summary label="Started" value={formatDateTime(walk.startedAt)} /><Summary label="Completing" value="Now" /></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Count label="Positive" value={counts.Positive} type="Positive" /><Count label="Opportunity" value={counts.Opportunity} type="Opportunity" /><Count label="Issue" value={counts.Issue} type="Issue" /><Count label="Actions" value={walk.actionIds.length} /></div>{outstanding.length > 0 && <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-3"><p className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="size-4" />{outstanding.length} issue{outstanding.length === 1 ? "" : "s"} without an action</p><p className="mt-1 text-xs leading-5 text-muted-foreground">You may still complete the walk. Add an action or record why follow-up is not required when appropriate.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setCompleteOpen(false)}>Continue Walking</Button><Button onClick={confirmComplete} disabled={observations.length === 0}>Complete Walk</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={completeOpen} onOpenChange={setCompleteOpen}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Review and complete walk</DialogTitle><DialogDescription>Confirm the captured record before closing this Gemba walk.</DialogDescription></DialogHeader><div className="grid gap-4"><div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-muted/[0.18] p-4 text-sm"><Summary label="Plant" value={walk.plant} /><Summary label="Zone" value={formatGembaZoneLabel(walk.zone)} /><Summary label="Lead" value={walk.leadName} /><Summary label="Participants" value={String(walk.participants.length)} /><Summary label="Started" value={formatDateTime(walk.startedAt)} /><Summary label="Completing" value="Now" /></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Count label="Positive" value={counts.Positive} type="Positive" /><Count label="Opportunity" value={counts.Opportunity} type="Opportunity" /><Count label="Issue" value={counts.Issue} type="Issue" /><Count label="Actions" value={walk.actionIds.length} /></div>{outstanding.length > 0 && <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-3"><p className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="size-4" />{outstanding.length} issue{outstanding.length === 1 ? "" : "s"} without an action</p><p className="mt-1 text-xs leading-5 text-muted-foreground">You may still complete the walk. Add an action or record why follow-up is not required when appropriate.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setCompleteOpen(false)}>Continue Walking</Button><Button onClick={confirmComplete} disabled={observations.length === 0}>Complete Walk</Button></DialogFooter></DialogContent></Dialog>
   </PageContainer>;
 }
 
-function ObservationCaptureDialog({ open, onOpenChange, walkId, zone, currentUser, participants, observation, onSaved }: {
-  open: boolean; onOpenChange: (open: boolean) => void; walkId: string; zone: string; currentUser: ReturnType<typeof useCurrentUser>; participants: string[]; observation: GembaObservation | null; onSaved: (observation: GembaObservation, createAction: boolean) => void;
+type CaptureMode = "choose" | "voice" | "form";
+
+function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, walkPurpose, currentUser, participants, observation, onSaved }: {
+  open: boolean; onOpenChange: (open: boolean) => void; walkId: string; plant: string; zone: string; walkPurpose: string; currentUser: ReturnType<typeof useCurrentUser>; participants: string[]; observation: GembaObservation | null; onSaved: (observation: GembaObservation, createAction: boolean) => void;
 }) {
+  const [mode, setMode] = useState<CaptureMode>(observation ? "form" : "choose");
   const [type, setType] = useState<GembaObservationType>(observation?.type ?? "Positive");
+  const [typeTouched, setTypeTouched] = useState(false);
   const [title, setTitle] = useState(observation?.title ?? "");
   const [description, setDescription] = useState(observation?.description ?? "");
   const [location, setLocation] = useState(observation?.location ?? zone);
   const [people, setPeople] = useState<string[]>(observation?.peopleInvolved ?? []);
   const [evidence, setEvidence] = useState<GembaEvidence[]>(observation?.evidence ?? []);
+  const [voiceNote, setVoiceNote] = useState<GembaVoiceNote | undefined>(observation?.voiceNote);
   const [noActionReason, setNoActionReason] = useState(observation?.noActionReason ?? "");
   const [createAction, setCreateAction] = useState(false);
   const [more, setMore] = useState(Boolean(observation));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [evidenceError, setEvidenceError] = useState("");
+  const [formNotice, setFormNotice] = useState("");
   const cameraRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const evidenceRef = useRef<HTMLDivElement>(null);
 
   async function addEvidence(files: FileList | null) {
     if (!files) return;
     setError(""); setBusy(true);
     try {
+      if (!isGembaPhotoStorageAvailable()) throw new Error("Photo storage is unavailable in this browser. Try a different browser or continue without a photo.");
       const selected = Array.from(files).slice(0, Math.max(0, MAX_EVIDENCE_IMAGES - evidence.length));
       if (!selected.length) throw new Error(`Maximum ${MAX_EVIDENCE_IMAGES} photos allowed.`);
       const next: GembaEvidence[] = [];
       for (const file of selected) {
-        const optimized = await optimizeEvidenceImage(file);
-        next.push({ id: `GEM-EV-${crypto.randomUUID()}`, name: file.name, url: optimized.dataUrl, mimeType: file.type, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name });
+        const optimized = await optimizeEvidenceImageToBlob(file);
+        const id = `GEM-EV-${crypto.randomUUID()}`;
+        // The Blob must be confirmed saved before this photo is treated as attached evidence —
+        // never add a reference to an evidence item whose binary failed to persist.
+        await saveGembaPhoto(id, optimized.blob);
+        next.push({ id, storageKey: id, name: file.name, url: URL.createObjectURL(optimized.blob), mimeType: optimized.mimeType, size: optimized.size, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name });
       }
       setEvidence((items) => [...items, ...next]);
+      setEvidenceError("");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to add this image."); }
     finally { setBusy(false); }
   }
 
+  function removeEvidence(item: GembaEvidence) {
+    setEvidence((items) => items.filter((candidate) => candidate.id !== item.id));
+    if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+    if (item.storageKey) void deleteGembaPhoto(item.storageKey).catch((error) => console.error(`[gemba] failed to delete photo ${item.storageKey}`, error));
+  }
+
+  const originalEvidenceIdsRef = useRef(new Set(observation?.evidence.map((item) => item.id) ?? []));
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      // Any photo added during this still-open session that never made it into a saved
+      // observation would otherwise be an orphaned IndexedDB Blob nothing references.
+      for (const item of evidence) {
+        if (!originalEvidenceIdsRef.current.has(item.id) && item.storageKey) {
+          void deleteGembaPhoto(item.storageKey).catch(() => {});
+        }
+      }
+    }
+    onOpenChange(nextOpen);
+  }
+
+  function selectType(next: GembaObservationType) {
+    setType(next);
+    setTypeTouched(true);
+    if (next === "Positive") setCreateAction(false);
+    if (next !== "Issue") setEvidenceError("");
+  }
+
   function submit() {
-    setError("");
+    setError(""); setEvidenceError("");
     if (!title.trim()) { setError("Add a short observation title."); return; }
-    const saved = saveGembaObservation(walkId, { type, title: title.trim(), description: description.trim() || title.trim(), location: location.trim() || zone, peopleInvolved: people, evidence, noActionReason: type === "Positive" || createAction ? undefined : noActionReason.trim() || undefined }, currentUser, observation?.id);
-    if (!saved) { setError("The observation could not be saved."); return; }
+    if (isEvidencePhotoRequired(type) && evidence.length === 0) {
+      setEvidenceError("Photo evidence is required for an Issue. Take or upload a photo before saving.");
+      evidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const saved = saveGembaObservation(walkId, { type, title: title.trim(), description: description.trim() || title.trim(), location: location.trim() || zone, peopleInvolved: people, evidence, voiceNote, noActionReason: type === "Positive" || createAction ? undefined : noActionReason.trim() || undefined }, currentUser, observation?.id);
+    if (!saved) { setError("Unable to save this observation locally. Please try again."); return; }
     onSaved(saved, createAction && type !== "Positive" && !saved.actionId);
   }
 
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[96dvh] max-w-2xl gap-3 sm:max-h-[90vh]"><DialogHeader><DialogTitle>{observation ? "Edit Observation" : "Add Observation"}</DialogTitle><DialogDescription>Capture the essential detail now. Everything else is optional.</DialogDescription></DialogHeader>
-    <div className="grid gap-4">
-      <div className="grid grid-cols-3 gap-2">{TYPES.map((item) => <button key={item.id} type="button" onClick={() => { setType(item.id); if (item.id === "Positive") setCreateAction(false); }} className={cn("min-h-16 rounded-lg border px-2 py-2 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", type === item.id ? cn("border-current", OBSERVATION_TYPE_STYLE[item.id].soft) : "bg-background hover:bg-muted/30")}><span className={cn("mx-auto block size-2 rounded-full", OBSERVATION_TYPE_STYLE[item.id].dot)} /><span className="mt-1.5 block text-xs font-semibold">{item.id}</span><span className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">{item.hint}</span></button>)}</div>
-      <Field label="Short Title *"><Input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === "Positive" ? "What is working well?" : type === "Issue" ? "What needs attention?" : "What could be improved?"} /></Field>
-      <div className="grid grid-cols-2 gap-2"><Button type="button" variant="outline" className="h-14" onClick={() => cameraRef.current?.click()}><Camera className="size-5" />Take Photo</Button><label className="inline-flex h-14 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-background px-3 text-sm font-medium hover:bg-muted/30"><ImagePlus className="size-5" />Upload<input hidden type="file" accept="image/*" multiple onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} /></label><input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} /></div>
-      {evidence.length > 0 && <div className="flex min-w-0 gap-2 overflow-x-auto pb-1">{evidence.map((item) => <div key={item.id} className="w-28 shrink-0 overflow-hidden rounded-lg border bg-muted"><div className="relative h-20"><img src={item.url} alt="" className="size-full object-cover" /><button type="button" onClick={() => setEvidence((items) => items.filter((candidate) => candidate.id !== item.id))} className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white" aria-label={`Remove ${item.name}`}><X className="size-3.5" /></button></div><input value={item.note ?? ""} onChange={(event) => setEvidence((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate))} className="h-8 w-full border-0 border-t bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-inset focus:ring-ring" placeholder="Add note" aria-label={`Note for ${item.name}`} /></div>)}</div>}
-      {type !== "Positive" && <label className={cn("flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border p-3", type === "Issue" ? "border-red-500/25 bg-red-500/[0.045]" : "bg-muted/[0.12]")}><Checkbox checked={createAction} disabled={Boolean(observation?.actionId)} onCheckedChange={(checked) => setCreateAction(checked === true)} /><span><span className="block text-sm font-medium">Create an Action after saving</span><span className="block text-[11px] text-muted-foreground">{type === "Issue" ? "Recommended for issues requiring follow-up." : "Optional for this improvement opportunity."}</span></span></label>}
-      <button type="button" onClick={() => setMore((value) => !value)} className="flex min-h-10 items-center justify-between border-y py-2 text-sm font-medium"><span>Additional details <span className="font-normal text-muted-foreground">(optional)</span></span><ChevronDown className={cn("size-4 transition-transform", more && "rotate-180")} /></button>
-      {more && <div className="grid gap-4"><Field label="Description"><Textarea className="min-h-24" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add context the team will need later..." /></Field><Field label="Area / Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder={`${zone} area or workstation`} /></Field>{participants.length > 0 && <Field label="People Involved"><div className="grid gap-1 rounded-lg border p-2 sm:grid-cols-2">{participants.map((name) => <label key={name} className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-muted/40"><Checkbox checked={people.includes(name)} onCheckedChange={(checked) => setPeople((current) => checked === true ? [...current, name] : current.filter((item) => item !== name))} />{name}</label>)}</div></Field>}{type !== "Positive" && !createAction && <Field label="Why no Action? (optional)"><Input value={noActionReason} onChange={(event) => setNoActionReason(event.target.value)} placeholder="e.g. Corrected immediately during the walk" /></Field>}</div>}
-      {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
+  const evidenceFull = evidence.length >= MAX_EVIDENCE_IMAGES;
+  const header = mode === "choose"
+    ? { title: "Add Observation", description: "Choose how you'd like to capture this observation." }
+    : mode === "voice"
+      ? { title: "Add Observation", description: "Tell us what you observed" }
+      : { title: observation ? "Edit Observation" : "Add Observation", description: "Capture the essential detail now. Everything else is optional." };
+
+  return <Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="flex max-h-[94dvh] w-full flex-col gap-0 overflow-hidden p-4 sm:max-h-[90vh] sm:max-w-[92vw] sm:p-8 lg:max-w-[min(960px,calc(100vw-64px))]">
+    <DialogHeader className="shrink-0 pb-3 sm:pb-4"><DialogTitle>{header.title}</DialogTitle><DialogDescription>{header.description}</DialogDescription></DialogHeader>
+
+    <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 sm:-mx-8 sm:px-8">
+      {mode === "choose" && <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-4 py-2 sm:grid-cols-2">
+        <button type="button" onClick={() => setMode("form")} className="group flex min-h-48 flex-col justify-between gap-4 rounded-xl border bg-background p-6 text-left outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring">
+          <div>
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-foreground"><Pencil className="size-5" /></span>
+            <p className="mt-4 text-base font-semibold">Enter manually</p>
+            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">Fill in the observation details yourself.</p>
+          </div>
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">Start manually<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></p>
+        </button>
+        <button type="button" onClick={() => setMode("voice")} className="group flex min-h-48 flex-col justify-between gap-4 rounded-xl border bg-background p-6 text-left outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring">
+          <div>
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary"><Mic className="size-5" /></span>
+            <p className="mt-4 text-base font-semibold">Use voice</p>
+            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">Describe what you see. AI will fill the form.</p>
+          </div>
+          <p className="flex items-center gap-1.5 text-sm font-medium text-primary">Start recording<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></p>
+        </button>
+      </div>}
+
+      {mode === "voice" && <div className="mx-auto w-full max-w-sm py-2">
+        <VoiceCaptureFlow
+          selectedType={type}
+          context={{ plant, zone, walkPurpose }}
+          currentUserName={currentUser.name}
+          onCancel={() => setMode("choose")}
+          onComplete={(result) => {
+            if (result.title) setTitle(result.title);
+            if (result.description) setDescription(result.description);
+            if (result.location) setLocation(result.location);
+            if (result.type && !typeTouched) setType(result.type);
+            if (result.voiceNote) setVoiceNote(result.voiceNote);
+            if (result.notice) setFormNotice(result.notice);
+            setMore(true);
+            setMode("form");
+          }}
+        />
+      </div>}
+
+      {mode === "form" && <div className="grid gap-5 pb-1 sm:gap-6">
+        {formNotice && <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-xs text-amber-800 dark:text-amber-300"><AlertTriangle className="size-3.5 shrink-0" /><span>{formNotice}</span></div>}
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {TYPES.map((item) => <button key={item.id} type="button" onClick={() => selectType(item.id)} className={cn("flex min-h-20 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-24 sm:gap-1.5", type === item.id ? cn("border-current", OBSERVATION_TYPE_STYLE[item.id].soft) : "bg-background hover:bg-muted/30")}>
+            <item.icon className={cn("size-5", type === item.id ? OBSERVATION_TYPE_STYLE[item.id].text : "text-muted-foreground")} />
+            <span className="text-xs font-semibold sm:text-sm">{item.id}</span>
+            <span className="hidden text-[11px] text-muted-foreground sm:block">{item.hint}</span>
+          </button>)}
+        </div>
+
+        <Field label="Short Title *"><Input autoFocus className="h-11" value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === "Positive" ? "What is working well?" : type === "Issue" ? "What needs attention?" : "What could be improved?"} /></Field>
+
+        <div ref={evidenceRef} className="rounded-xl border p-3 sm:p-5">
+          <p className="text-sm font-semibold">Evidence {isEvidencePhotoRequired(type) ? <span className="font-normal text-muted-foreground">· Photo required for issues</span> : <span className="font-normal text-muted-foreground">(optional)</span>}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Add a photo to support this observation.</p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3">
+            <EvidenceActionCard icon={Camera} label="Take Photo" description="Use your camera" disabled={evidenceFull} onClick={() => cameraRef.current?.click()} />
+            <EvidenceActionCard icon={ImagePlus} label="Upload Photo" description="Choose from device" disabled={evidenceFull} onClick={() => uploadRef.current?.click()} />
+          </div>
+          <input ref={uploadRef} hidden type="file" accept="image/*" multiple onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
+          <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
+
+          {evidenceError && <p role="alert" className="mt-3 rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-xs leading-5 text-red-700 dark:text-red-400">{evidenceError}</p>}
+
+          {(evidence.length > 0 || voiceNote) && <div className="mt-4 grid gap-3 border-t pt-4">
+            {evidence.length > 0 && <div>
+              <p className="text-xs font-medium text-muted-foreground">Photo{evidence.length === 1 ? "" : "s"} · {evidence.length} attached</p>
+              <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+                {evidence.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border bg-muted">
+                  <div className="relative aspect-square"><GembaEvidenceImage evidence={item} className="size-full object-cover" /><button type="button" onClick={() => removeEvidence(item)} className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white" aria-label={`Remove ${item.name}`}><X className="size-3.5" /></button></div>
+                  <input value={item.note ?? ""} onChange={(event) => setEvidence((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate))} className="h-8 w-full border-0 border-t bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-inset focus:ring-ring" placeholder="Add note" aria-label={`Note for ${item.name}`} />
+                </div>)}
+              </div>
+            </div>}
+            {voiceNote && <VoiceNoteAttachment voiceNote={voiceNote} onRemove={() => setVoiceNote(undefined)} />}
+          </div>}
+        </div>
+
+        {type !== "Positive" && <label className={cn("flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border p-3", type === "Issue" ? "border-red-500/25 bg-red-500/[0.045]" : "bg-muted/[0.12]")}><Checkbox checked={createAction} disabled={Boolean(observation?.actionId)} onCheckedChange={(checked) => setCreateAction(checked === true)} /><span><span className="block text-sm font-medium">Create an Action after saving</span><span className="block text-[11px] text-muted-foreground">{type === "Issue" ? "Recommended for issues requiring follow-up." : "Optional for this improvement opportunity."}</span></span></label>}
+
+        <button type="button" onClick={() => setMore((value) => !value)} className="flex min-h-10 items-center justify-between border-y py-2 text-sm font-medium"><span>Additional details <span className="font-normal text-muted-foreground">(optional)</span></span><ChevronDown className={cn("size-4 transition-transform", more && "rotate-180")} /></button>
+        {more && <div className="grid gap-4">
+          <p className="text-xs text-muted-foreground sm:-mt-2">Add location, description and other supporting information.</p>
+          <Field label="Description"><Textarea className="min-h-24" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add context the team will need later..." /></Field>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Field label="Area / Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder={`${zone} area or workstation`} /></Field>
+            {type !== "Positive" && !createAction && <Field label="Why no Action? (optional)"><Input value={noActionReason} onChange={(event) => setNoActionReason(event.target.value)} placeholder="e.g. Corrected immediately during the walk" /></Field>}
+          </div>
+          {participants.length > 0 && <Field label="People Involved"><div className="grid gap-1 rounded-lg border p-2 sm:grid-cols-2 lg:grid-cols-3">{participants.map((name) => <label key={name} className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-muted/40"><Checkbox checked={people.includes(name)} onCheckedChange={(checked) => setPeople((current) => checked === true ? [...current, name] : current.filter((item) => item !== name))} />{name}</label>)}</div></Field>}
+        </div>}
+        {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
+      </div>}
     </div>
-    <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={submit} disabled={!title.trim() || busy}>{busy ? "Processing..." : observation ? "Save Changes" : "Save Observation"}</Button></DialogFooter>
+
+    {mode !== "choose" && <DialogFooter className="shrink-0 sm:-mx-8 sm:-mb-8 sm:p-8">
+      <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+      {mode === "form" && <Button onClick={submit} disabled={!title.trim() || busy}>{busy ? "Processing..." : observation ? "Save Changes" : "Save Observation"}</Button>}
+    </DialogFooter>}
   </DialogContent></Dialog>;
+}
+
+function EvidenceActionCard({ icon: Icon, label, description, onClick, disabled }: { icon: LucideIcon; label: string; description: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border bg-background px-2 py-3 text-center outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-20 sm:gap-1">
+    <Icon className="size-5 text-muted-foreground" />
+    <span className="text-xs font-semibold">{label}</span>
+    <span className="hidden text-[10px] leading-tight text-muted-foreground sm:block">{description}</span>
+  </button>;
+}
+
+function VoiceNoteAttachment({ voiceNote, onRemove }: { voiceNote: GembaVoiceNote; onRemove: () => void }) {
+  return <div>
+    <div className="flex items-center justify-between gap-2">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Mic className="size-3.5" />Voice note · <Check className="size-3 text-emerald-600 dark:text-emerald-400" />{voiceNote.durationSeconds}s attached</p>
+      <button type="button" onClick={onRemove} className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted" aria-label="Remove voice note"><X className="size-3.5" /></button>
+    </div>
+    <div className="mt-2 rounded-lg border bg-muted/[0.18] p-3">
+      {voiceNote.audioUrl ? <audio controls src={voiceNote.audioUrl} className="h-8 w-full"><track kind="captions" /></audio> : <p className="text-xs text-muted-foreground">Playback is unavailable in this session.</p>}
+      {voiceNote.transcript && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-muted-foreground">&quot;{voiceNote.transcript}&quot;</p>}
+    </div>
+  </div>;
 }
 
 function toLinkedContext(walk: GembaWalk, observation: GembaObservation): LinkedActionContext {

@@ -25,3 +25,21 @@ export async function optimizeEvidenceImage(file: File) {
   const dataUrl = canvas.toDataURL("image/jpeg", 0.76);
   return { dataUrl, size: Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75), width: canvas.width, height: canvas.height, originalSize: file.size };
 }
+
+/**
+ * Same optimization pipeline as `optimizeEvidenceImage`, but outputs a Blob
+ * instead of a base64 data URL. Used by Gemba photo evidence, which persists
+ * the Blob to IndexedDB rather than embedding it in the localStorage-backed
+ * observation record. Other callers of `optimizeEvidenceImage` are untouched.
+ */
+export async function optimizeEvidenceImageToBlob(file: File) {
+  validateEvidenceSelection([file]);
+  const source = await readFile(file); const image = await decodeImage(source);
+  const scale = Math.min(1, MAX_EVIDENCE_DIMENSION / image.naturalWidth, MAX_EVIDENCE_DIMENSION / image.naturalHeight);
+  const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d"); if (!context) throw new EvidenceImageError("decode", "Image processing is unavailable in this browser.");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.76));
+  if (!blob) throw new EvidenceImageError("decode", "Unable to process this image.");
+  return { blob, size: blob.size, width: canvas.width, height: canvas.height, originalSize: file.size, mimeType: blob.type || "image/jpeg" };
+}

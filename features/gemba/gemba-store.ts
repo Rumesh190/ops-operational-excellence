@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { safeSetStorage } from "@/lib/browser-storage";
+import { dataUrlToBlob, isGembaPhotoStorageAvailable, saveGembaPhoto } from "@/lib/gemba/gemba-photo-storage";
 import type {
   GembaActor,
   GembaEvidence,
@@ -10,10 +11,30 @@ import type {
   GembaObservationType,
   GembaParticipant,
   GembaState,
+  GembaVoiceNote,
   GembaWalk,
 } from "./types";
 
 const STORAGE_KEY = "ops-gemba-v1";
+
+/**
+ * Defensive safeguard (not just an at-capture-time convention): strips any
+ * `data:`/`blob:` URL before an observation's evidence is persisted, so a
+ * future bug in the capture UI can never reintroduce embedded photo binary
+ * into localStorage. The photo Blob itself lives in IndexedDB; only its
+ * `storageKey` reference (or a genuinely lightweight static path, e.g. seed
+ * demo assets) is safe to keep in the persisted `url` field.
+ */
+function sanitizeEvidenceForPersist(evidence: GembaEvidence[]): GembaEvidence[] {
+  return evidence.map((item) => {
+    if (typeof item.url === "string" && (item.url.startsWith("data:") || item.url.startsWith("blob:"))) {
+      const { url, ...rest } = item;
+      void url;
+      return rest;
+    }
+    return item;
+  });
+}
 
 const SEED_OBSERVATIONS: GembaObservation[] = [
   {
@@ -85,9 +106,9 @@ const SEED_WALKS: GembaWalk[] = [
   },
   {
     id: "GEM-2026-016", plant: "Egmore Plant", zone: "Zone C", leadId: "USR-LAKSHMAN", leadName: "Lakshman",
-    participants: [{ id: "USR-NASAR", name: "Nasar", role: "Zone Member" }], purpose: "Observe end-of-shift machine care", notes: "Coordinate with maintenance", scheduledDate: "2026-09-15", status: "Draft",
+    participants: [{ id: "USR-NASAR", name: "Nasar", role: "Zone Member" }], purpose: "Observe end-of-shift machine care", notes: "Coordinate with maintenance", scheduledDate: "2026-09-15", status: "Scheduled",
     createdAt: "2026-09-14T12:20:00+05:30", updatedAt: "2026-09-14T12:20:00+05:30", observationIds: [], actionIds: [],
-    activity: [{ id: "GEM-ACT-016-01", type: "draft_saved", label: "Draft walk saved", userId: "USR-LAKSHMAN", userName: "Lakshman", at: "2026-09-14T12:20:00+05:30" }],
+    activity: [{ id: "GEM-ACT-016-01", type: "draft_saved", label: "Walk scheduled", userId: "USR-LAKSHMAN", userName: "Lakshman", at: "2026-09-14T12:20:00+05:30" }],
   },
   {
     id: "GEM-2026-014", plant: "Egmore Plant", zone: "Zone B", leadId: "USR-RUMESH", leadName: "Rumesh",
@@ -131,6 +152,79 @@ function load() {
     const parsed = JSON.parse(saved) as Partial<GembaState>;
     if (Array.isArray(parsed.walks) && Array.isArray(parsed.observations)) state = parsed as GembaState;
   } catch { /* keep the complete demo state */ }
+  normalizeLegacyWalkStatuses();
+  // Fire-and-forget: migrates any legacy embedded photo payloads out of this
+  // already-loaded state into IndexedDB, then re-persists once. The UI keeps
+  // working with the (larger) pre-migration data in the meantime; when
+  // migration finishes it calls persist(), which notifies subscribers like
+  // any other store mutation, so the smaller/cleaned evidence just replaces
+  // it in place — no separate loading state needed.
+  void migrateLegacyGembaPhotos();
+}
+
+/**
+ * Backward-compatible, synchronous status normalization: legacy walks were
+ * created with status "Draft" for "not started yet"; that concept is now
+ * called "Scheduled". Existing persisted records are upgraded in place (once,
+ * on load) rather than requiring a destructive migration or supporting two
+ * parallel status names throughout the UI.
+ */
+function normalizeLegacyWalkStatuses() {
+  if (!state.walks.some((walk) => walk.status === "Draft")) return;
+  const walks = state.walks.map((walk) => (walk.status === "Draft" ? { ...walk, status: "Scheduled" as const } : walk));
+  persist({ ...state, walks });
+}
+
+let migrationStarted = false;
+
+/**
+ * One-time, idempotent migration of legacy base64/data-URL Gemba photo
+ * evidence into IndexedDB. Safe to call more than once (e.g. across HMR) —
+ * guarded so it only runs once per page session, and each item is only
+ * migrated if it still has a `data:` payload (already-migrated or
+ * static/seed evidence is left untouched, making repeat runs no-ops).
+ */
+async function migrateLegacyGembaPhotos() {
+  if (migrationStarted) return;
+  migrationStarted = true;
+  if (!isGembaPhotoStorageAvailable()) return;
+
+  const pending: Array<{ observationId: string; evidenceId: string; storageKey: string; blob: Blob }> = [];
+  for (const observation of state.observations) {
+    for (const item of observation.evidence) {
+      if (typeof item.url === "string" && item.url.startsWith("data:image")) {
+        const blob = dataUrlToBlob(item.url);
+        if (blob) pending.push({ observationId: observation.id, evidenceId: item.id, storageKey: item.id, blob });
+      }
+    }
+  }
+  if (!pending.length) return;
+
+  const migrated = new Set<string>();
+  for (const item of pending) {
+    try {
+      // Only remove the legacy embedded payload after the Blob is confirmed saved.
+      await saveGembaPhoto(item.storageKey, item.blob);
+      migrated.add(item.evidenceId);
+    } catch (error) {
+      console.error(`[gemba] failed to migrate photo evidence ${item.evidenceId}; leaving legacy payload in place for retry`, error);
+    }
+  }
+  if (!migrated.size) return;
+
+  // Re-read the freshest state (not a snapshot captured before the awaits
+  // above) so a concurrent save during migration is never clobbered.
+  const latest = getGembaState();
+  const observations = latest.observations.map((observation) => {
+    if (!observation.evidence.some((item) => migrated.has(item.id))) return observation;
+    return {
+      ...observation,
+      evidence: observation.evidence.map((item) =>
+        migrated.has(item.id) ? { ...item, url: undefined, storageKey: item.id } : item
+      ),
+    };
+  });
+  persist({ walks: latest.walks, observations });
 }
 
 function persist(next: GembaState) {
@@ -177,15 +271,16 @@ export interface CreateGembaWalkInput {
   purpose: string;
   notes?: string;
   scheduledDate: string;
+  scheduledTime?: string;
 }
 
 export function createGembaWalk(input: CreateGembaWalkInput, actor: GembaActor, startNow: boolean) {
   load();
   const now = new Date().toISOString();
   const walk: GembaWalk = {
-    ...input, id: nextWalkId(), status: startNow ? "In Progress" : "Draft", createdAt: now, updatedAt: now,
+    ...input, id: nextWalkId(), status: startNow ? "In Progress" : "Scheduled", createdAt: now, updatedAt: now,
     startedAt: startNow ? now : undefined, observationIds: [], actionIds: [],
-    activity: [event(startNow ? "walk_started" : "draft_saved", startNow ? "Walk started" : "Draft walk saved", actor)],
+    activity: [event(startNow ? "walk_started" : "draft_saved", startNow ? "Walk started" : "Walk scheduled", actor)],
   };
   return persist({ ...state, walks: [walk, ...state.walks] }) ? walk : null;
 }
@@ -193,10 +288,39 @@ export function createGembaWalk(input: CreateGembaWalkInput, actor: GembaActor, 
 export function startGembaWalk(walkId: string, actor: GembaActor) {
   load();
   const now = new Date().toISOString();
-  const next = state.walks.map((walk) => walk.id === walkId && walk.status === "Draft" ? {
+  const next = state.walks.map((walk) => walk.id === walkId && walk.status === "Scheduled" ? {
     ...walk, status: "In Progress" as const, startedAt: now, updatedAt: now, activity: [...walk.activity, event("walk_started", "Walk started", actor)],
   } : walk);
   return persist({ ...state, walks: next });
+}
+
+export interface GembaWalkSetupPatch {
+  plant?: string;
+  zone?: string;
+  leadId?: string;
+  leadName?: string;
+  participants?: GembaParticipant[];
+  purpose?: string;
+  notes?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+}
+
+/**
+ * Updates a walk's own setup fields (plant/zone/leader/participants/purpose/
+ * notes/schedule). Only allowed while the walk is still "Scheduled" — once a
+ * walk is "In Progress" (or "Completed"), its original setup is locked and
+ * this returns null instead of mutating anything. There is currently no UI
+ * calling this yet; it exists as the enforced guard for that rule.
+ */
+export function updateGembaWalkSetup(walkId: string, patch: GembaWalkSetupPatch, actor: GembaActor) {
+  load();
+  const walk = state.walks.find((item) => item.id === walkId);
+  if (!walk || walk.status !== "Scheduled") return null;
+  const now = new Date().toISOString();
+  const updated: GembaWalk = { ...walk, ...patch, updatedAt: now, activity: [...walk.activity, event("draft_saved", "Walk setup updated", actor)] };
+  const walks = state.walks.map((item) => (item.id === walkId ? updated : item));
+  return persist({ ...state, walks }) ? updated : null;
 }
 
 export interface SaveObservationInput {
@@ -206,6 +330,7 @@ export interface SaveObservationInput {
   location: string;
   peopleInvolved: string[];
   evidence: GembaEvidence[];
+  voiceNote?: GembaVoiceNote;
   noActionReason?: string;
 }
 
@@ -215,13 +340,15 @@ export function saveGembaObservation(walkId: string, input: SaveObservationInput
   if (!walk || walk.status !== "In Progress") return null;
   const now = new Date().toISOString();
   const existing = observationId ? state.observations.find((item) => item.id === observationId && item.gembaId === walkId) : undefined;
+  const sanitizedInput: SaveObservationInput = { ...input, evidence: sanitizeEvidenceForPersist(input.evidence) };
   const observation: GembaObservation = existing
-    ? { ...existing, ...input, updatedAt: now }
-    : { ...input, id: nextObservationId(walkId), gembaId: walkId, createdById: actor.id, createdByName: actor.name, createdAt: now, updatedAt: now };
+    ? { ...existing, ...sanitizedInput, updatedAt: now }
+    : { ...sanitizedInput, id: nextObservationId(walkId), gembaId: walkId, createdById: actor.id, createdByName: actor.name, createdAt: now, updatedAt: now };
   const observations = existing ? state.observations.map((item) => item.id === observation.id ? observation : item) : [observation, ...state.observations];
   const activity = [...walk.activity, event(existing ? "observation_edited" : "observation_added", existing ? `Observation ${observation.id} edited` : `${observation.type} observation added`, actor, { observationId: observation.id })];
   const photosAdded = Math.max(0, observation.evidence.length - (existing?.evidence.length ?? 0));
   if (photosAdded) activity.push(event("photo_uploaded", `${photosAdded} photo${photosAdded === 1 ? "" : "s"} uploaded`, actor, { observationId: observation.id }));
+  if (observation.voiceNote && observation.voiceNote.id !== existing?.voiceNote?.id) activity.push(event("voice_note_added", "Voice note added", actor, { observationId: observation.id }));
   const walks = state.walks.map((item) => item.id === walkId ? { ...item, updatedAt: now, observationIds: existing ? item.observationIds : [...item.observationIds, observation.id], activity } : item);
   return persist({ walks, observations }) ? observation : null;
 }
