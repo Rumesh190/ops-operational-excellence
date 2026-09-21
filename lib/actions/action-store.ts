@@ -9,15 +9,17 @@ import {
 import type {
   MyAction,
   MyActionActivity,
-  MyActionStatus,
 } from "@/features/five-s/types/my-actions";
 import { createNotification } from "@/lib/notifications/notification-store";
 import { getFiveSZoneConfiguration } from "@/lib/five-s/configuration";
 import { safeSetStorage, safeSetStorageString } from "@/lib/browser-storage";
+import { getActionSourceDefinition, normalizeActionSource } from "@/lib/actions/action-config";
 
 export interface ActionActor {
   id: string;
   name: string;
+  roles?: readonly string[];
+  permissions?: readonly string[];
 }
 
 type CreateActionInput = Omit<
@@ -31,7 +33,7 @@ type ActionEvidence =
 const STORAGE_KEY =
   "standalone-5s-actions";
 const DEMO_FIXTURE_VERSION_KEY = "standalone-5s-action-fixture-version";
-const DEMO_FIXTURE_VERSION = "canonical-zone-a-dashboard-v3";
+const DEMO_FIXTURE_VERSION = "canonical-zone-a-dashboard-v4";
 
 let hasLoadedFromStorage = false;
 
@@ -107,7 +109,7 @@ function saveToStorage() {
 
 /** Preserve legacy arrays while making evidence purpose explicit. */
 function normalizeEvidence(action: MyAction): MyAction {
-  return {
+  return normalizeActionSource({
     ...action,
     issueEvidence: (action.issueEvidence ?? []).map((evidence) => ({
       ...evidence,
@@ -119,7 +121,12 @@ function normalizeEvidence(action: MyAction): MyAction {
       actionId: evidence.actionId ?? action.id,
       evidenceType: "resolution",
     })),
-  };
+    progressEvidence: (action.progressEvidence ?? []).map((evidence) => ({
+      ...evidence,
+      actionId: evidence.actionId ?? action.id,
+      evidenceType: "progress",
+    })),
+  });
 }
 
 /* =========================================================
@@ -203,7 +210,7 @@ export function createAction(
   loadFromStorage();
   const actionId = `ACT-${Date.now()}`;
 
-  const action: MyAction = {
+  const action: MyAction = normalizeEvidence({
     ...input,
 
     id: actionId,
@@ -218,6 +225,7 @@ export function createAction(
       evidenceType: "finding",
     })),
     evidence: [],
+    progressEvidence: input.progressEvidence ?? [],
 
     activityHistory: input.activityHistory ?? [
       createActivity("created", {
@@ -225,7 +233,7 @@ export function createAction(
         name: input.createdByName ?? input.auditor ?? "Auditor",
       }),
     ],
-  };
+  });
 
   actions = [
     action,
@@ -235,12 +243,12 @@ export function createAction(
   emitChange();
 
   if (action.status === "Awaiting Assignment" && action.zoneLeaderId) {
-    createNotification({ recipientUserId: action.zoneLeaderId, title: "New Action Requires Assignment", message: `${action.title} · Raised by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Audit: ${action.sourceTitle} · Zone: ${action.area} · Priority: ${action.priority}`, href: `/5s/actions/${encodeURIComponent(action.id)}` });
+    createNotification({ recipientUserId: action.zoneLeaderId, title: "New Action Requires Assignment", message: `${action.title} · Raised by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Source: ${getActionSourceDefinition(action).label} ${action.sourceId ?? action.sourceTitle} · Zone: ${action.area} · Priority: ${action.priority}`, href: `/5s/actions/${encodeURIComponent(action.id)}` });
   } else if (action.responsiblePersonId) {
     createNotification({
       recipientUserId: action.responsiblePersonId,
       title: "New action assigned",
-      message: `${action.title} · Assigned by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Audit: ${action.sourceTitle} · Zone: ${action.area} · Priority: ${action.priority} · Due: ${action.dueDate}`,
+      message: `${action.title} · Assigned by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Source: ${getActionSourceDefinition(action).label} ${action.sourceId ?? action.sourceTitle} · Zone: ${action.area} · Priority: ${action.priority} · Due: ${action.dueDate}`,
       href: `/5s/actions/${encodeURIComponent(action.id)}`,
     });
   }
@@ -254,7 +262,7 @@ export function assignActionToZoneMember(actionId: string, actor: ActionActor, m
   const member = zone?.members.find((item) => item.id === memberId);
   if (!action || action.status !== "Awaiting Assignment" || !zone || zone.leaderId !== actor.id || !member) return undefined;
   const assignedAt = new Date().toISOString();
-  const updated = updateAction(actionId, { status: "Assigned", assignedTo: member.name, responsiblePersonId: member.id, responsiblePersonName: member.name, assignedByUserId: actor.id, assignedByName: actor.name, assignedAt, activityHistory: appendActivity(action, createActivity("assigned", actor, `Assigned to ${member.name}`)) });
+  const updated = updateActionInternal(actionId, { status: "Assigned", assignedTo: member.name, responsiblePersonId: member.id, responsiblePersonName: member.name, assignedByUserId: actor.id, assignedByName: actor.name, assignedAt, activityHistory: appendActivity(action, createActivity("assigned", actor, `Assigned to ${member.name}`)) });
   if (updated) createNotification({ recipientUserId: member.id, title: "New Action Assigned", message: `${action.title} · Assigned by: ${actor.name} · Raised by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Zone: ${action.area} · Priority: ${action.priority} · Due: ${action.dueDate}`, href: `/5s/actions/${encodeURIComponent(action.id)}` });
   return updated;
 }
@@ -282,6 +290,10 @@ function creatorId(action: MyAction) {
   return action.createdByUserId ?? action.auditor;
 }
 
+function reviewerRecipientId(action: MyAction) {
+  return action.reviewerId ?? creatorId(action);
+}
+
 function isResponsible(action: MyAction, actor: ActionActor) {
   return action.responsiblePersonId
     ? action.responsiblePersonId === actor.id
@@ -289,9 +301,21 @@ function isResponsible(action: MyAction, actor: ActionActor) {
 }
 
 function isCreator(action: MyAction, actor: ActionActor) {
-  return action.createdByUserId
-    ? action.createdByUserId === actor.id
-    : !action.auditor || action.auditor === actor.name;
+  if (action.createdByUserId) return action.createdByUserId === actor.id;
+  if (action.createdByName) return action.createdByName === actor.name;
+  return Boolean(action.auditor && action.auditor === actor.name);
+}
+
+export function canReviewAction(action: MyAction, actor: ActionActor) {
+  if (action.reviewerId || action.reviewerName) return action.reviewerId === actor.id || action.reviewerName === actor.name;
+  if (action.auditor) return action.auditor === actor.name;
+  if (action.createdByUserId || action.createdByName) return isCreator(action, actor);
+  return Boolean(actor.roles?.includes("Admin") && actor.permissions?.includes("actions.review") && actor.permissions?.includes("actions.close"));
+}
+
+export function canReassignAction(action: MyAction, actor: ActionActor) {
+  if (action.status === "Completed") return false;
+  return Boolean(actor.roles?.includes("Admin") || action.zoneLeaderId === actor.id || isCreator(action, actor));
 }
 
 function appendActivity(action: MyAction, activity: MyActionActivity) {
@@ -301,7 +325,7 @@ function appendActivity(action: MyAction, activity: MyActionActivity) {
 export function startAssignedAction(actionId: string, actor: ActionActor) {
   const action = getActionById(actionId);
   if (!action || !isResponsible(action, actor) || !["Assigned", "Open", "Rework Required"].includes(action.status)) return undefined;
-  return updateAction(actionId, {
+  return updateActionInternal(actionId, {
     status: "In Progress",
     activityHistory: appendActivity(action, createActivity("started", actor)),
   });
@@ -317,7 +341,7 @@ export function submitActionForReview(
   if (!resolution.observation.trim() || !resolution.correctiveActionCategory || action.evidence.length === 0 || !Number.isFinite(resolution.costSaving) || resolution.costSaving < 0) return undefined;
   const isResubmission = action.status === "Rework Required" || (action.reviewHistory?.length ?? 0) > 0;
   const now = new Date().toISOString();
-  const updated = updateAction(actionId, {
+  const updated = updateActionInternal(actionId, {
     status: "Pending Auditor Review",
     actionTakenDescription: resolution.observation.trim(),
     resolutionObservation: resolution.observation.trim(),
@@ -328,10 +352,10 @@ export function submitActionForReview(
     completedAt: undefined,
     activityHistory: appendActivity(action, createActivity(isResubmission ? "resubmitted" : "submitted", actor)),
   });
-  if (updated && creatorId(action)) createNotification({
-    recipientUserId: creatorId(action)!,
+  if (updated && reviewerRecipientId(action)) createNotification({
+    recipientUserId: reviewerRecipientId(action)!,
     title: isResubmission ? "Action resubmitted for review" : "Action submitted for review",
-    message: `${action.title} · Submitted by: ${actor.name} · Audit: ${action.sourceTitle} · Zone: ${action.area}`,
+    message: `${action.title} · Submitted by: ${actor.name} · Source: ${getActionSourceDefinition(action).label} ${action.sourceId ?? action.sourceTitle} · Zone: ${action.area}`,
     href: `/5s/actions/${encodeURIComponent(action.id)}?mode=review`,
   });
   return updated;
@@ -339,9 +363,9 @@ export function submitActionForReview(
 
 export function sendActionBack(actionId: string, actor: ActionActor, remark: string) {
   const action = getActionById(actionId);
-  if (!action || !isCreator(action, actor) || !["Pending Review", "Pending Auditor Review", "Awaiting Review"].includes(action.status) || !remark.trim()) return undefined;
+  if (!action || !canReviewAction(action, actor) || !["Pending Review", "Pending Auditor Review", "Awaiting Review"].includes(action.status) || !remark.trim()) return undefined;
   const review = createActivity("sent_back", actor, remark.trim());
-  const updated = updateAction(actionId, {
+  const updated = updateActionInternal(actionId, {
     status: "Rework Required",
     reviewedAt: undefined,
     reviewedBy: undefined,
@@ -358,17 +382,21 @@ export function sendActionBack(actionId: string, actor: ActionActor, remark: str
   return updated;
 }
 
-export function closeReviewedAction(actionId: string, actor: ActionActor) {
+export function closeReviewedAction(actionId: string, actor: ActionActor, closureRemark?: string) {
   const action = getActionById(actionId);
-  if (!action || !isCreator(action, actor) || !["Pending Review", "Pending Auditor Review", "Awaiting Review"].includes(action.status)) return undefined;
+  if (!action || !canReviewAction(action, actor) || !["Pending Review", "Pending Auditor Review", "Awaiting Review"].includes(action.status)) return undefined;
   const now = new Date().toISOString();
-  const reviewedActivity = createActivity("reviewed", actor);
+  const reviewedActivity = createActivity("verified", actor, closureRemark?.trim() || undefined);
   const closedActivity = createActivity("closed", actor);
-  const updated = updateAction(actionId, {
+  const updated = updateActionInternal(actionId, {
     status: "Completed",
     reviewedBy: actor.name,
     reviewedAt: now,
     completedAt: now,
+    closedByUserId: actor.id,
+    closedBy: actor.name,
+    closedAt: now,
+    closureRemark: closureRemark?.trim() || undefined,
     completedByUserId: action.responsiblePersonId,
     completedByName: action.responsiblePersonName ?? action.assignedTo,
     reviewHistory: [...(action.reviewHistory ?? []), reviewedActivity, closedActivity],
@@ -383,10 +411,43 @@ export function closeReviewedAction(actionId: string, actor: ActionActor) {
   return updated;
 }
 
+export function reassignActionOwner(actionId: string, actor: ActionActor, memberId: string, reason: string) {
+  const action = getActionById(actionId);
+  const zone = action ? getFiveSZoneConfiguration(action.area) : undefined;
+  const member = zone?.members.find((item) => item.id === memberId);
+  if (!action || !zone || !member || !reason.trim() || !canReassignAction(action, actor)) return undefined;
+  const changedAt = new Date().toISOString();
+  const previousOwnerName = action.responsiblePersonName ?? action.assignedTo ?? "Unassigned";
+  const reassignment = {
+    id: `REASSIGN-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    previousOwnerId: action.responsiblePersonId,
+    previousOwnerName,
+    newOwnerId: member.id,
+    newOwnerName: member.name,
+    changedByUserId: actor.id,
+    changedByName: actor.name,
+    changedAt,
+    reason: reason.trim(),
+  };
+  const updated = updateActionInternal(actionId, {
+    assignedTo: member.name,
+    responsiblePersonId: member.id,
+    responsiblePersonName: member.name,
+    assignedByUserId: actor.id,
+    assignedByName: actor.name,
+    assignedAt: changedAt,
+    status: action.status === "Awaiting Assignment" ? "Assigned" : action.status,
+    reassignmentHistory: [...(action.reassignmentHistory ?? []), reassignment],
+    activityHistory: appendActivity(action, createActivity("reassigned", actor, `${previousOwnerName} → ${member.name}. ${reason.trim()}`)),
+  });
+  if (updated) createNotification({ recipientUserId: member.id, title: "Action reassigned to you", message: `${action.title} · Changed by: ${actor.name} · ${reason.trim()}`, href: `/actions/${encodeURIComponent(action.id)}` });
+  return updated;
+}
+
 /**
  * Update an existing action.
  */
-export function updateAction(
+function updateActionInternal(
   actionId: string,
   updates: Partial<MyAction>
 ): MyAction | undefined {
@@ -416,32 +477,13 @@ export function updateAction(
   return updatedAction;
 }
 
-/**
- * Change action status.
- */
-export function updateActionStatus(
+/** Update editable fields without bypassing the authoritative lifecycle. */
+export function updateAction(
   actionId: string,
-  status: MyActionStatus
+  updates: Partial<MyAction>
 ): MyAction | undefined {
-  return updateAction(
-    actionId,
-    {
-      status,
-
-      ...(status ===
-      "Completed"
-        ? {
-            completedAt:
-              new Date()
-                .toISOString()
-                .slice(0, 10),
-          }
-        : {
-            completedAt:
-              undefined,
-          }),
-    }
-  );
+  if ("status" in updates) return undefined;
+  return updateActionInternal(actionId, updates);
 }
 
 /**
@@ -449,7 +491,8 @@ export function updateActionStatus(
  */
 export function addActionEvidence(
   actionId: string,
-  evidence: ActionEvidence
+  evidence: ActionEvidence,
+  actor?: ActionActor,
 ): MyAction | undefined {
   const action =
     getActionById(
@@ -467,8 +510,18 @@ export function addActionEvidence(
         ...action.evidence,
         { ...evidence, actionId, evidenceType: "resolution" },
       ],
+      ...(actor ? { activityHistory: appendActivity(action, createActivity("evidence_uploaded", actor, `Completion evidence: ${evidence.name}`)) } : {}),
     }
   );
+}
+
+export function addActionProgressEvidence(actionId: string, evidence: ActionEvidence, actor?: ActionActor) {
+  const action = getActionById(actionId);
+  if (!action) return undefined;
+  return updateAction(actionId, {
+    progressEvidence: [...(action.progressEvidence ?? []), { ...evidence, actionId, evidenceType: "progress" }],
+    ...(actor ? { activityHistory: appendActivity(action, createActivity("evidence_uploaded", actor, `Progress evidence: ${evidence.name}`)) } : {}),
+  });
 }
 
 /**
@@ -498,6 +551,12 @@ export function removeActionEvidence(
         ),
     }
   );
+}
+
+export function removeActionProgressEvidence(actionId: string, evidenceId: string) {
+  const action = getActionById(actionId);
+  if (!action) return undefined;
+  return updateAction(actionId, { progressEvidence: (action.progressEvidence ?? []).filter((evidence) => evidence.id !== evidenceId) });
 }
 
 /**

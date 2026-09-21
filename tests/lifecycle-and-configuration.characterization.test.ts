@@ -45,7 +45,7 @@ describe("lifecycle derivation", () => {
     expect(getAuditLifecycleStage(audit(status, percentage))).toBe(stage);
   });
 
-  it("maps persisted action statuses into the current five display stages", () => {
+  it("maps persisted action statuses into the canonical display stages", () => {
     expect({
       awaiting: getActionLifecycleStage("Awaiting Assignment"),
       assigned: getActionLifecycleStage("Assigned"),
@@ -63,7 +63,7 @@ describe("lifecycle derivation", () => {
       open: "Assigned",
       progress: "In Progress",
       overdue: "In Progress",
-      rework: "In Progress",
+      rework: "Rework",
       submitted: "Submitted for Review",
       review: "Under Review",
       awaitingReview: "Under Review",
@@ -85,7 +85,7 @@ describe("zone permissions and priority dates", () => {
   });
 
   it.each([
-    ["Critical", "2026-08-31"],
+    ["Critical", "2026-09-01"],
     ["High", "2026-09-01"],
     ["Medium", "2026-09-02"],
     ["Low", "2026-09-03"],

@@ -18,7 +18,7 @@ interface FiveSPageHeaderProps {
 }
 
 export default function FiveSPageHeader({
-  eyebrow = "5S",
+  eyebrow = "OPS",
   title,
   description,
   leading,
@@ -42,7 +42,7 @@ export default function FiveSPageHeader({
           <div className="min-w-0">
           {eyebrow && (
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-              {eyebrow}
+              {eyebrow === "5S Workspace" ? "OPS Workspace" : eyebrow}
             </p>
           )}
 

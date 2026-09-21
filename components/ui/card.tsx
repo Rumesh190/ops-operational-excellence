@@ -15,7 +15,7 @@ function Card({
         "border border-border/75",
         "shadow-[0_1px_2px_rgb(16_24_40/0.035),0_8px_24px_-20px_rgb(16_24_40/0.28)]",
         "transition-shadow duration-200",
-        "dark:border-white/[0.075] dark:shadow-[0_1px_0_rgb(255_255_255/0.025)]",
+        "dark:border-white/[0.11] dark:shadow-[0_1px_0_rgb(255_255_255/0.035),0_12px_30px_-24px_rgb(0_0_0/0.9)]",
         className
       )}
       {...props}

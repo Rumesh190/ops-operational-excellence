@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 
+import { getRoleVisibleActions } from "@/features/actions/action-center-data";
+import { useAdminUsers } from "@/features/five-s/administration/store";
 import { useActionStore } from "@/lib/actions/action-store";
+import { useCurrentUser } from "@/lib/current-user";
 
 import FiveSActionReportPage from "./action-report-page";
 
@@ -18,14 +21,14 @@ export default function FiveSActionReportRoute({
   returnTo,
 }: FiveSActionReportRouteProps) {
   const router = useRouter();
-
   const actions = useActionStore();
-
-  const action = actions.find(
-    (item) => item.id === actionId
-  );
+  const currentUser = useCurrentUser();
+  const adminUsers = useAdminUsers();
+  const adminUser = adminUsers.find((user) => user.id === currentUser.id);
+  const storedAction = actions.find((item) => item.id === actionId);
+  const action = getRoleVisibleActions(actions, currentUser, adminUser).find((item) => item.id === actionId);
   const reportsOrigin = origin === "reports-action";
-  const backDestination = reportsOrigin && returnTo?.startsWith("/5s/reports") ? returnTo : "/5s/actions";
+  const backDestination = reportsOrigin && (returnTo?.startsWith("/5s/reports") || returnTo?.startsWith("/reports")) ? returnTo : "/actions";
   const backLabel = reportsOrigin ? "Back to Action Reports" : "Back to Actions";
 
   /* =========================================================
@@ -37,11 +40,11 @@ export default function FiveSActionReportRoute({
       <div className="flex min-h-[60vh] items-center justify-center px-6 py-6">
         <div className="text-center">
           <h1 className="text-lg font-semibold">
-            Action not found
+            {storedAction ? "Action access denied" : "Action not found"}
           </h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            The requested action could not be found.
+            {storedAction ? "This report is outside your permitted role or zone scope." : "The requested action could not be found."}
           </p>
 
           <button
@@ -100,6 +103,7 @@ export default function FiveSActionReportRoute({
         onBack={() =>
           router.push(backDestination)
         }
+        onViewSource={reportsOrigin ? () => router.push(`/actions/${encodeURIComponent(action.id)}`) : undefined}
         backLabel={backLabel}
       />
     </div>

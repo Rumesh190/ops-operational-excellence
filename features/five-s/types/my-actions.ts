@@ -15,10 +15,16 @@ export type MyActionActivityType =
   | "awaiting_assignment"
   | "assigned"
   | "started"
+  | "evidence_uploaded"
   | "submitted"
   | "resubmitted"
   | "reviewed"
+  | "verified"
   | "sent_back"
+  | "reminder_generated"
+  | "escalated"
+  | "escalation_acknowledged"
+  | "reassigned"
   | "closed";
 
 export interface MyActionActivity {
@@ -30,20 +36,50 @@ export interface MyActionActivity {
   remark?: string;
 }
 
+export interface MyActionReassignment {
+  id: string;
+  previousOwnerId?: string;
+  previousOwnerName: string;
+  newOwnerId: string;
+  newOwnerName: string;
+  changedByUserId: string;
+  changedByName: string;
+  changedAt: string;
+  reason: string;
+}
+
 export type MyActionPriority =
   | "Low"
   | "Medium"
   | "High"
   | "Critical";
 
+export type ActionSourceModule =
+  | "audit"
+  | "continuousImprovement"
+  | "redFlag"
+  | "redTag"
+  | "visualManagement"
+  | "visualImprovement"
+  | "gemba"
+  | "manual";
+
 export type MyActionSource =
-  "5S Audit";
+  | "5S Audit"
+  | "Audit"
+  | "Continuous Improvement"
+  | "Red Flag"
+  | "Red Tag"
+  | "Visual Management"
+  | "Visual Improvement"
+  | "Gemba"
+  | "Manual";
 
 export interface MyActionEvidence {
   id: string;
   /** Action-level ownership metadata; optional for legacy evidence. */
   actionId?: string;
-  evidenceType?: "finding" | "resolution";
+  evidenceType?: "finding" | "progress" | "resolution";
   name: string;
 
   type:
@@ -64,6 +100,8 @@ export interface MyAction {
   auditId?: string;
   questionId?: string;
   questionText?: string;
+  questionSource?: "standard" | "custom";
+  customQuestionId?: string;
   sectionId?: string;
   zoneId?: string;
 
@@ -72,6 +110,14 @@ export interface MyAction {
 
   source: MyActionSource;
   sourceTitle: string;
+
+  /** Cross-module source metadata. Legacy audit records are normalized at read time. */
+  sourceModule?: ActionSourceModule;
+  sourceId?: string;
+  sourceLabel?: string;
+  sourceLocation?: string;
+  sourceObservationId?: string;
+  sourceObservation?: string;
 
   category?: string;
 
@@ -131,12 +177,21 @@ export interface MyAction {
    */
   reviewedAt?: string;
   reviewedBy?: string;
+  reviewerId?: string;
+  reviewerName?: string;
 
   completedAt?: string;
   completedByUserId?: string;
   completedByName?: string;
   reviewHistory?: MyActionActivity[];
   activityHistory?: MyActionActivity[];
+  reassignmentHistory?: MyActionReassignment[];
+
+  /** Explicit closure metadata. Legacy records continue to fall back to review/completion fields. */
+  closedByUserId?: string;
+  closedBy?: string;
+  closedAt?: string;
+  closureRemark?: string;
 
   /**
    * Evidence captured when the issue was originally
@@ -145,6 +200,9 @@ export interface MyAction {
    * Used as BEFORE evidence in the closure report.
    */
   issueEvidence?: MyActionEvidence[];
+
+  /** Optional work-in-progress evidence; completion evidence remains in `evidence`. */
+  progressEvidence?: MyActionEvidence[];
 
   /**
    * Evidence uploaded by the action owner when

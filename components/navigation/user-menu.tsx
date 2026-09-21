@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Check, Languages, LogOut, Palette, Users } from "lucide-react"
+import { Check, Languages, LogOut, Palette, Settings, ShieldCheck, Users } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,7 @@ function UserMenu() {
         }
       >
         <Avatar>
+          {currentUser.photo && <AvatarImage src={currentUser.photo} alt="" />}
           <AvatarFallback>{currentUser.initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -80,6 +81,11 @@ function UserMenu() {
             </span>
             {currentUser.id === DEMO_USERS.responsible.id && <Check className="text-primary" />}
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setDemoRole("superAdmin")}>
+            <ShieldCheck />
+            <span className="min-w-0 flex-1"><span className="block">{DEMO_USERS.superAdmin.name}</span><span className="block truncate text-xs text-muted-foreground">Platform Administrator</span></span>
+            {currentUser.id === DEMO_USERS.superAdmin.id && <Check className="text-primary" />}
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
@@ -87,6 +93,7 @@ function UserMenu() {
             <Users />
             {t("account.profile")}
           </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/settings" />}><Settings />Settings</DropdownMenuItem>
           <DropdownMenuItem onClick={() => setPreferencesOpen(true)}>
             <Palette />
             {t("account.appearance")}

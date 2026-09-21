@@ -1,82 +1,57 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Building2, LayoutDashboard, Settings } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getEnabledNavigationGroups, getNavigationGroup, isAccessCapabilityRouteActive } from "@/lib/modules";
+import { useModuleEntitlements } from "@/lib/module-entitlements";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { cn } from "@/lib/utils"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { isNavGroup, isNavItemActive, MAIN_NAV, type NavLeaf } from "@/lib/navigation"
-import { useI18n } from "@/components/preferences/use-i18n"
-import { navigationKey } from "@/lib/i18n"
-import { useCurrentUser } from "@/lib/current-user"
-import { useAdminUsers } from "@/features/five-s/administration/store"
-import { hasPermission } from "@/features/five-s/administration/permissions"
+interface SidebarNavProps { collapsed?: boolean; onNavigate?: () => void }
 
-interface SidebarNavProps {
-  collapsed?: boolean
-  onNavigate?: () => void
+function activePath(pathname: string, href: string, aliases: readonly string[] = []) {
+  return [href, ...aliases].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+function NavItem({ href, label, subtitle, icon: Icon, active, collapsed, onNavigate }: { href: string; label: string; subtitle?: string; icon: LucideIcon; active: boolean; collapsed: boolean; onNavigate?: () => void }) {
+  const link = <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(
+    "group relative flex items-center rounded-lg text-[13px] font-medium text-slate-300 outline-none transition-[background-color,color] duration-150 hover:bg-white/[0.055] hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]",
+    subtitle && !collapsed ? "min-h-11 py-1.5" : "h-10",
+    collapsed ? "justify-center px-0" : "gap-3 px-3",
+    active && "bg-[#1c2a40] text-white",
+  )}>
+    {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-[var(--brand-accent)]" aria-hidden />}
+    <Icon className={cn("size-[17px] shrink-0 transition-colors", active ? "text-[var(--brand-accent-light)]" : "text-slate-400/80 group-hover:text-slate-200")} />
+    {!collapsed && <span className="min-w-0 leading-tight"><span className="block truncate">{label}</span>{subtitle && <span className={cn("mt-0.5 block truncate text-[10.5px] font-medium", active ? "text-[var(--brand-accent-light)] opacity-80" : "text-slate-500 group-hover:text-slate-400")}>{subtitle}</span>}</span>}
+    {collapsed && <span className="sr-only">{label}</span>}
+  </Link>;
+  const tooltip = subtitle ? `${label} — ${subtitle}` : label;
+  return collapsed ? <Tooltip><TooltipTrigger render={link} /><TooltipContent side="right">{tooltip}</TooltipContent></Tooltip> : link;
+}
+
+function Section({ label, collapsed, children }: { label: string; collapsed: boolean; children: ReactNode }) {
+  return <section className="mt-4 first:mt-0">{!collapsed && <h2 className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400/70">{label}</h2>}<div className="flex flex-col gap-0.5">{children}</div></section>;
 }
 
 function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
-  const pathname = usePathname()
-  const navGroup = MAIN_NAV.find(isNavGroup)
-  const currentUser = useCurrentUser()
-  const adminUsers = useAdminUsers()
-  const adminUser = adminUsers.find((user)=>user.id===currentUser.id)
-
-  if (!navGroup) return null
-
-  return (
-    <nav aria-label="Primary" className={cn("flex flex-col gap-1", collapsed ? "px-2" : "px-3")}>
-      {navGroup.children.filter((item)=>!item.requiredPermission||hasPermission(adminUser,item.requiredPermission)).map((item) => (
-        <SidebarLink
-          key={item.href}
-          entry={item}
-          active={isNavItemActive(pathname, item.href)}
-          collapsed={collapsed}
-          onNavigate={onNavigate}
-        />
-      ))}
-    </nav>
-  )
+  const pathname = usePathname();
+  const entitlements = useModuleEntitlements();
+  const groups = getEnabledNavigationGroups(entitlements);
+  return <nav aria-label="Primary" className={collapsed ? "px-2" : "px-3"}>
+    <Section label={getNavigationGroup("overview").label} collapsed={collapsed}><NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} active={pathname === "/dashboard" || pathname === "/5s"} collapsed={collapsed} onNavigate={onNavigate} /></Section>
+    {groups.map((group) => <Section key={group.id} label={group.label} collapsed={collapsed}>{group.items.map((capability) => <NavItem key={capability.id} href={capability.route} label={capability.label} subtitle={capability.stageLabel} icon={capability.icon} active={isAccessCapabilityRouteActive(pathname, capability)} collapsed={collapsed} onNavigate={onNavigate} />)}</Section>)}
+    <Section label={getNavigationGroup("system").label} collapsed={collapsed}><NavItem href="/settings" label="Settings" icon={Settings} active={activePath(pathname, "/settings")} collapsed={collapsed} onNavigate={onNavigate} /></Section>
+  </nav>;
 }
 
-function SidebarLink({ entry, active, collapsed, onNavigate }: { entry: NavLeaf; active: boolean; collapsed: boolean; onNavigate?: () => void }) {
-  const Icon = entry.icon
-  const { t } = useI18n()
-  const label = entry.label === "Administration" ? entry.label : t(navigationKey(entry.href))
-  const link = (
-    <Link
-      href={entry.href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "group relative flex h-10 items-center rounded-lg border border-transparent text-[13.5px] font-medium outline-none",
-        "transition-[background-color,border-color,color,box-shadow] duration-200 motion-reduce:transition-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-        collapsed ? "justify-center px-0" : "gap-3 px-3",
-        active && "border-sidebar-border bg-card text-sidebar-foreground shadow-[0_1px_2px_rgb(16_24_40/0.05)] dark:bg-sidebar-accent"
-      )}
-    >
-      {active && <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-sidebar-primary" />}
-      <span className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-        active ? "bg-primary/10 text-primary" : "text-muted-foreground group-hover:text-sidebar-foreground"
-      )}>
-        <Icon className="size-4" />
-      </span>
-      {!collapsed && <span className="break-words leading-5">{label}</span>}
-      {collapsed && <span className="sr-only">{label}</span>}
-    </Link>
-  )
-
-  if (!collapsed) return link
-
-  return (
-    <Tooltip>
-      <TooltipTrigger render={link} />
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
-  )
+function SuperAdminSidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
+  const pathname = usePathname();
+  return <nav aria-label="Platform administration" className={collapsed ? "px-2" : "px-3"}>
+    <Section label="Platform" collapsed={collapsed}><NavItem href="/super-admin/organizations" label="Organizations" icon={Building2} active={activePath(pathname, "/super-admin/organizations")} collapsed={collapsed} onNavigate={onNavigate} /></Section>
+  </nav>;
 }
 
-export { SidebarNav }
+export { SidebarNav, SuperAdminSidebarNav };

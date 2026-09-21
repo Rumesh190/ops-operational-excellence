@@ -1,150 +1,82 @@
-import type { LucideIcon } from "lucide-react";
+/** Human-readable route labels used by the contextual breadcrumb only. */
+export const ROUTE_LABELS: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/audits": "Audits",
+  "/actions": "Actions",
+  "/continuous-improvement": "Continuous Improvement",
+  "/red-flag": "Red Flag",
+  "/visual-management": "Visual Management",
+  "/visual-management/boards": "Boards",
+  "/visual-management/meetings": "Meetings",
+  "/visual-management/escalations": "Escalations",
+  "/visual-improvement": "Legacy Improvement",
+  "/gemba": "Gemba",
+  "/analytics": "Analytics",
+  "/reports": "Reports",
 
-import {
-  BarChart3,
-  ClipboardCheck,
-  ClipboardList,
-  LayoutDashboard,
-  ListTodo,
-  Flag,
-  TrendingUp,
-  ShieldCheck,
-} from "lucide-react";
-import type { PermissionCode } from "@/features/five-s/administration/types";
+  // Global Settings
+  "/settings": "Settings",
+  "/settings/users": "Users",
+  "/settings/roles": "Roles & Permissions",
+  "/settings/module-access": "Module Access",
+  "/settings/organization": "Organization",
+  "/settings/organization/plant": "Plant",
+  "/settings/organization/zones": "Zones",
+  "/settings/notifications": "Notifications",
+  "/settings/appearance": "Appearance",
 
-export interface NavLeaf {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-  requiredPermission?: PermissionCode;
-}
+  // Canonical: Audit Settings
+  "/audits/settings": "Settings",
+  "/audits/settings/custom-questions": "Custom Questions",
+  "/audits/settings/scoring": "Scoring",
+  "/audits/settings/evidence-rules": "Evidence Rules",
 
-export interface NavGroup extends NavLeaf {
-  children: NavLeaf[];
-}
+  // Canonical: Action Settings
+  "/actions/settings": "Settings",
+  "/actions/settings/categories": "Categories",
+  "/actions/settings/priority-due-dates": "Priority & Due Dates",
+  "/actions/settings/reminder-rules": "Reminder Rules",
+  "/actions/settings/escalation-rules": "Escalation Rules",
 
-export type NavEntry = NavLeaf | NavGroup;
+  // Canonical: Visual Management Settings
+  "/visual-management/settings": "Settings",
+  "/visual-management/settings/boards": "Boards",
+  "/visual-management/settings/tiers": "Tier Structure",
+  "/visual-management/settings/kpi-sections": "KPI Sections",
 
-export function isNavGroup(
-  entry: NavEntry
-): entry is NavGroup {
-  return (
-    "children" in entry &&
-    Array.isArray(entry.children)
-  );
-}
+  // Canonical: Module Settings destinations (empty/future)
+  "/gemba/settings": "Settings",
+  "/red-flag/settings": "Settings",
+  "/continuous-improvement/settings": "Settings",
 
-/* =========================================================
-   MAIN NAVIGATION
-   ========================================================= */
+  // Legacy compatibility labels (kept for redirect-page breadcrumbs)
+  "/settings/audit": "Audit Configuration",
+  "/settings/audit/custom-questions": "Custom Questions",
+  "/settings/audit/scoring": "Scoring",
+  "/settings/audit/evidence-rules": "Evidence Rules",
+  "/settings/actions": "Action Configuration",
+  "/settings/actions/priority-due-dates": "Priority & Due Dates",
+  "/settings/actions/categories": "Action Categories",
+  "/settings/actions/reminder-rules": "Reminder Rules",
+  "/settings/actions/escalation-rules": "Escalation Rules",
+  "/settings/visual-management": "Visual Management",
+  "/settings/visual-management/boards": "Boards",
+  "/settings/visual-management/tiers": "Tier Structure",
+  "/settings/visual-management/kpi-sections": "KPI Sections",
 
-export const MAIN_NAV: NavEntry[] = [
-  {
-    label: "5S",
-    href: "/5s",
-    icon: ClipboardCheck,
-
-    children: [
-      {
-        label: "Dashboard",
-        href: "/5s",
-        icon: LayoutDashboard,
-      },
-
-      {
-        label: "Audits",
-        href: "/5s/audits",
-        icon: ClipboardList,
-      },
-
-      {
-        label: "Actions",
-        href: "/5s/actions",
-        icon: ListTodo,
-      },
-
-      {
-        label: "Reports",
-        href: "/5s/reports",
-        icon: BarChart3,
-      },
-
-      {
-        label: "Continuous Improvement",
-        href: "/5s/continuous-improvement",
-        icon: TrendingUp,
-      },
-
-      {
-        label: "Red Tag",
-        href: "/5s/red",
-        icon: Flag,
-      },
-      {
-        label: "Administration",
-        href: "/administration/users",
-        icon: ShieldCheck,
-        requiredPermission: "administration.view",
-      },
-    ],
-  },
-];
-
-/* =========================================================
-   ROUTE LABELS
-   ========================================================= */
-
-export const ROUTE_LABELS: Record<
-  string,
-  string
-> = {
+  "/admin": "System",
+  "/admin/users": "User Management",
+  "/super-admin": "Super Admin",
+  "/super-admin/organizations": "Organizations",
+  "/super-admin/settings": "Platform Settings",
   "/5s": "Dashboard",
   "/5s/audits": "Audits",
   "/5s/listing": "Audits",
   "/5s/actions": "Actions",
   "/5s/reports": "Reports",
   "/5s/continuous-improvement": "Continuous Improvement",
-  "/5s/red": "Red Tag",
-  "/administration/users": "Users & Access",
-
-  /*
-   * Keep Profile temporarily because the shared
-   * user menu may still link to it.
-   */
+  "/5s/red": "Red Tags",
+  "/5s/red/settings": "Settings",
+  "/administration/users": "User Management",
   "/profile": "Profile Settings",
 };
-
-/* =========================================================
-   ACTIVE ROUTE
-   ========================================================= */
-
-export function isNavItemActive(
-  pathname: string,
-  href: string
-): boolean {
-  /*
-   * 5S dashboard should use exact matching.
-   *
-   * This prevents /5s from appearing active
-   * at the same time as /5s/audits,
-   * /5s/actions, etc.
-   */
-  if (href === "/5s") {
-    return pathname === href;
-  }
-
-  /*
-   * Nested routes.
-   *
-   * Example:
-   *
-   * /5s/actions
-   * /5s/actions/123
-   *
-   * Both activate Actions.
-   */
-  return (
-    pathname === href ||
-    pathname.startsWith(`${href}/`)
-  );
-}

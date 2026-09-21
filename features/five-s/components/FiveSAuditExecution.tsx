@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/card";
 
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -80,15 +81,16 @@ import { updateFiveSAudit } from "@/lib/five-s/audit-store";
 import { AUDIT_LIFECYCLE_STAGES } from "@/lib/five-s/lifecycle-status";
 import { useCurrentUser } from "@/lib/current-user";
 import {
-  FIVE_S_ACTION_CATEGORIES,
   getFiveSZoneConfiguration,
-  getPriorityDueDate,
   toLocalInputDate,
   type FiveSActionPriority,
 } from "@/lib/five-s/configuration";
+import { useActiveActionCategories } from "@/lib/actions/action-category-store";
+import { getPriorityDueDate, useActiveActionPriorities } from "@/lib/actions/action-configuration-store";
 
 import type {
   FiveSAudit,
+  FiveSAuditStage,
   FiveSCategory,
   FiveSEvidence,
   FiveSQuestion,
@@ -96,6 +98,7 @@ import type {
   FiveSSection,
 } from "../types/five-s";
 import type { MyAction } from "../types/my-actions";
+import { isAuditQuestionComplete } from "@/features/settings/custom-audit-questions/checklist";
 
 interface FiveSAuditExecutionProps {
   audit: FiveSAudit;
@@ -127,15 +130,22 @@ interface QuestionState {
   dueDate: string;
 
   evidence: FiveSEvidence[];
+  textResponse: string;
+  yesNoResponse?: "Yes" | "No";
 }
 
-const CATEGORY_ORDER: FiveSCategory[] = [
+const CATEGORY_ORDER: FiveSAuditStage[] = [
   "Sort",
   "Set in Order",
   "Shine",
   "Standardize",
   "Sustain",
+  "General",
 ];
+
+function isFiveSCategory(category: FiveSAuditStage): category is FiveSCategory {
+  return category !== "General";
+}
 
 const SCORE_OPTIONS = [0, 1, 2];
 
@@ -259,6 +269,8 @@ function createInitialQuestionState(
 
     evidence:
       question.evidence ?? [],
+    textResponse: question.textResponse ?? "",
+    yesNoResponse: question.yesNoResponse,
   };
 }
 
@@ -305,7 +317,7 @@ function FiveSAuditExecution({
               (question, questionIndex) => ({
                 ...question,
 
-                ...(!question.referenceImage ? referenceFields(section.category, questionIndex) : {}),
+                ...(!question.referenceImage && question.questionSource !== "custom" && isFiveSCategory(section.category) ? referenceFields(section.category, questionIndex) : {}),
 
                 evidence:
                   question.evidence ?? [],
@@ -463,12 +475,7 @@ function FiveSAuditExecution({
     [sections]
   );
 
-  const answeredQuestions =
-    allQuestions.filter(
-      (question) =>
-        questionStates[question.id]
-          ?.score !== null
-    ).length;
+  const answeredQuestions = allQuestions.filter(isQuestionComplete).length;
 
   const questionsRequiringActions =
     allQuestions.filter(
@@ -525,8 +532,10 @@ function FiveSAuditExecution({
           ? 1
           : 0;
 
-  const totalMaxScore =
-    allQuestions.length * 2;
+  const totalMaxScore = allQuestions.reduce((total, question) => {
+    const unansweredOptional = question.questionSource === "custom" && question.mandatory === false && questionStates[question.id]?.score === null;
+    return total + (unansweredOptional ? 0 : question.maxScore);
+  }, 0);
 
   const totalScore =
     allQuestions.reduce(
@@ -581,34 +590,11 @@ function FiveSAuditExecution({
         question.id
       ];
 
-    if (!state || state.score === null) {
+    if (!state) {
       return false;
     }
 
-    if (
-      (state.score === 0 ||
-        state.score === 1) &&
-      !state.observation.trim()
-    ) {
-      return false;
-    }
-
-    if (
-      (state.score === 0 ||
-        state.score === 1) &&
-      !state.actionId
-    ) {
-      return false;
-    }
-
-    if (
-      (state.score === 0 || state.score === 1) &&
-      state.evidence.length === 0
-    ) {
-      return false;
-    }
-
-    return true;
+    return isAuditQuestionComplete(question, state);
   }
 
   function isSectionComplete(
@@ -636,7 +622,10 @@ function FiveSAuditExecution({
 
   useEffect(() => {
     const snapshot = Object.fromEntries(
-      allQuestions.map((question) => [question.id, isQuestionComplete(question)])
+      allQuestions.map((question) => {
+        const state = questionStates[question.id];
+        return [question.id, Boolean(state && isAuditQuestionComplete(question, state))];
+      })
     );
 
     if (!completionSnapshotRef.current) {
@@ -770,6 +759,8 @@ function FiveSAuditExecution({
                       updates.evidence ??
                       question.evidence ??
                       [],
+                    textResponse: updates.textResponse ?? question.textResponse,
+                    yesNoResponse: updates.yesNoResponse ?? question.yesNoResponse,
                   };
                 }
               ),
@@ -923,7 +914,9 @@ function FiveSAuditExecution({
       !state.actionCategory ||
       !state.dueDate ||
       state.dueDate < today ||
-      ((state.score === 0 || state.score === 1) && state.evidence.length === 0)
+      ((state.score === 0 || state.score === 1) &&
+        (question.questionSource !== "custom" || question.requireEvidenceOnNonCompliance) &&
+        state.evidence.length === 0)
     ) {
       return;
     }
@@ -978,6 +971,8 @@ function FiveSAuditExecution({
         auditId: audit.id,
         questionId: question.id,
         questionText: question.question,
+        questionSource: question.questionSource ?? "standard",
+        customQuestionId: question.customQuestionId,
         sectionId: section.category,
         zoneId: audit.area,
 
@@ -985,9 +980,13 @@ function FiveSAuditExecution({
         description,
 
         source: "5S Audit",
-
-        sourceTitle:
-          audit.title,
+        sourceModule: "audit",
+        sourceId: audit.id,
+        sourceTitle: audit.title,
+        sourceLabel: "Audit",
+        sourceLocation: `${audit.plant} · ${audit.area}`,
+        sourceObservationId: question.id,
+        sourceObservation: state.observation.trim() || question.question,
 
         category:
           section.category,
@@ -1227,10 +1226,10 @@ function FiveSAuditExecution({
   function calculateSectionMaxScore(
     section: FiveSSection
   ) {
-    return (
-      section.questions.length *
-      2
-    );
+    return section.questions.reduce((total, question) => {
+      const unansweredOptional = question.questionSource === "custom" && question.mandatory === false && questionStates[question.id]?.score === null;
+      return total + (unansweredOptional ? 0 : question.maxScore);
+    }, 0);
   }
 
   /**
@@ -1402,6 +1401,8 @@ function FiveSAuditExecution({
                       state?.evidence ??
                       question.evidence ??
                       [],
+                    textResponse: state?.textResponse ?? question.textResponse,
+                    yesNoResponse: state?.yesNoResponse ?? question.yesNoResponse,
                   };
                 }
               ),
@@ -2001,6 +2002,8 @@ function FiveSAuditExecution({
                           0 ||
                         state.score ===
                           1;
+                      const responseType = question.responseType ?? "Compliance";
+                      const requiresEvidence = requiresAction && (question.questionSource !== "custom" || Boolean(question.requireEvidenceOnNonCompliance));
 
                       const questionUnlocked = true;
                       const expanded = question.id === expandedQuestionId;
@@ -2029,7 +2032,7 @@ function FiveSAuditExecution({
                             >
                               <span className="pt-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">{String(questionIndex + 1).padStart(2, "0")}</span>
                               <span className="min-w-0 flex-1">
-                                <span className="block whitespace-normal break-words text-sm font-medium leading-5 [overflow-wrap:anywhere]">{auditQuestionText(language, activeSection.category, questionIndex, question.question)}</span>
+                                <span className="flex flex-wrap items-center gap-2 whitespace-normal break-words text-sm font-medium leading-5 [overflow-wrap:anywhere]">{auditQuestionText(language, activeSection.category, questionIndex, question.question)}{question.questionSource === "custom" && <Badge variant="outline" className="text-[10px]">Custom</Badge>}</span>
                                 <span className="mt-1 block text-[11px] text-muted-foreground">
                                   {state.observation.trim() ? t("audit.observationAdded") : t("audit.noObservation")}
                                   {state.actionId ? ` · ${t("audit.oneAction")}` : ""}
@@ -2037,7 +2040,7 @@ function FiveSAuditExecution({
                                 </span>
                               </span>
                               <span className="flex shrink-0 items-center gap-2">
-                                {state.score !== null ? <Badge className={SCORE_STYLES[state.score]}><span className="sm:hidden" aria-hidden="true">{state.score}</span><span className="hidden sm:inline">{state.score} · {state.score === 0 ? t("score.zero") : state.score === 1 ? t("score.one") : t("score.two")}</span><span className="sr-only sm:hidden">{state.score === 0 ? t("score.zero") : state.score === 1 ? t("score.one") : t("score.two")}</span></Badge> : <span className="hidden text-[11px] text-muted-foreground sm:inline">{t("audit.notAnswered")}</span>}
+                                {responseType === "Compliance" && state.score !== null ? <Badge className={SCORE_STYLES[state.score]}><span className="sm:hidden" aria-hidden="true">{state.score}</span><span className="hidden sm:inline">{state.score} · {state.score === 0 ? t("score.zero") : state.score === 1 ? t("score.one") : t("score.two")}</span><span className="sr-only sm:hidden">{state.score === 0 ? t("score.zero") : state.score === 1 ? t("score.one") : t("score.two")}</span></Badge> : responseType === "Yes / No" && state.yesNoResponse ? <Badge variant="outline">{state.yesNoResponse}</Badge> : responseType === "Text" && state.textResponse.trim() ? <Badge variant="outline">Answered</Badge> : <span className="hidden text-[11px] text-muted-foreground sm:inline">{question.mandatory === false ? "Optional" : t("audit.notAnswered")}</span>}
                                 <ChevronDown className="size-4 text-muted-foreground" />
                               </span>
                             </button>
@@ -2077,17 +2080,15 @@ function FiveSAuditExecution({
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 max-w-full">
-                                  <p className="max-w-5xl whitespace-normal break-words text-lg font-semibold leading-[1.35] tracking-[-0.01em] [overflow-wrap:anywhere] md:leading-7">
+                                  <div className="flex flex-wrap items-center gap-2"><p className="max-w-5xl whitespace-normal break-words text-lg font-semibold leading-[1.35] tracking-[-0.01em] [overflow-wrap:anywhere] md:leading-7">
                                     {
                                       auditQuestionText(language, activeSection.category, questionIndex, question.question)
                                     }
-                                  </p>
+                                  </p>{question.questionSource === "custom" && <Badge variant="outline" className="text-[10px]">Custom</Badge>}</div>
 
                                   {question.description && (
                                     <p className="mt-1 max-w-full whitespace-normal break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
-                                      {
-                                        t("audit.assessRequirement")
-                                      }
+                                      {question.questionSource === "custom" ? question.description : t("audit.assessRequirement")}
                                     </p>
                                   )}
                                 </div>
@@ -2121,7 +2122,7 @@ function FiveSAuditExecution({
 
                               {/* SCORE */}
 
-                              <div className="mt-4">
+                              {responseType === "Compliance" ? <div className="mt-4">
                                 <p className="mb-2 text-xs font-medium">
                                   {t("audit.score")}
                                 </p>
@@ -2194,7 +2195,7 @@ function FiveSAuditExecution({
                                     }
                                   )}
                                 </div>
-                              </div>
+                              </div> : responseType === "Yes / No" ? <div className="mt-4"><p className="mb-2 text-xs font-medium">Response {question.mandatory && <span className="text-destructive">*</span>}</p><div className="grid grid-cols-2 gap-2">{(["Yes", "No"] as const).map((value) => <Button key={value} type="button" variant={state.yesNoResponse === value ? "default" : "outline"} aria-pressed={state.yesNoResponse === value} onClick={() => updateQuestionState(question.id, { yesNoResponse: value, status: "Pass" })}>{value}</Button>)}</div></div> : <div className="mt-4"><div className="flex items-center justify-between gap-3"><Label htmlFor={`text-response-${question.id}`} className="text-xs">Response {question.mandatory && <span className="text-destructive">*</span>}</Label><span className="text-[11px] text-muted-foreground">{state.textResponse.length} / 2000</span></div><Textarea id={`text-response-${question.id}`} value={state.textResponse} maxLength={2000} onChange={(event) => updateQuestionState(question.id, { textResponse: event.target.value, status: event.target.value.trim() ? "Pass" : "Not Started" })} className="mt-2 min-h-28" placeholder="Record your response..." /></div>}
 
                               {/* OBSERVATION */}
 
@@ -2313,8 +2314,8 @@ function FiveSAuditExecution({
                                       <FileText className="size-4 text-muted-foreground" />
 
                                       <p className="text-xs font-medium">
-                                        {t("audit.evidence")} <span className="font-normal text-muted-foreground">({requiresAction ? t("common.required") : t("common.optional")})</span>
-                                        {requiresAction && <span className="ml-1 text-destructive">*</span>}
+                                        {t("audit.evidence")} <span className="font-normal text-muted-foreground">({requiresEvidence ? t("common.required") : t("common.optional")})</span>
+                                        {requiresEvidence && <span className="ml-1 text-destructive">*</span>}
                                       </p>
                                     </div>
 
@@ -2609,6 +2610,7 @@ function FiveSAuditExecution({
                       Preview unavailable for this file type.
                     </p>
                     <Button
+                      nativeButton={false}
                       render={<a href={previewEvidence.dataUrl} target="_blank" rel="noreferrer" />}
                       size="sm"
                       variant="secondary"
@@ -2676,6 +2678,7 @@ function FiveSAuditExecution({
                   </Button>
 
                   <Button
+                    nativeButton={false}
                     render={<a href={previewEvidence.dataUrl} target="_blank" rel="noreferrer" />}
                     variant="ghost"
                     size="sm"
@@ -2782,11 +2785,14 @@ function ActionDialog({
   saving,
 }: ActionDialogProps) {
   const { actionCategoryLabel, t } = useI18n();
+  const actionCategories = useActiveActionCategories();
+  const actionPriorities = useActiveActionPriorities();
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
   const evidenceCameraRef = useRef<HTMLInputElement | null>(null);
   const requiresAction =
     state.score === 0 ||
     state.score === 1;
+  const requiresEvidence = requiresAction && (question.questionSource !== "custom" || Boolean(question.requireEvidenceOnNonCompliance));
 
   const today = toLocalInputDate(new Date());
   const selectedZone = getFiveSZoneConfiguration(zone);
@@ -2794,12 +2800,11 @@ function ActionDialog({
   const canEditCreatedAction = !state.actionId || existingAction?.status === "Awaiting Assignment";
   const dueDateInvalid = !state.dueDate || state.dueDate < today;
 
-  const priorityHelper: Record<FiveSActionPriority, string> = {
-    Critical: "Defaulted to today based on Critical priority",
-    High: "Defaulted to tomorrow based on High priority",
-    Medium: "Defaulted to 2 days from today",
-    Low: "Defaulted to 3 days from today",
-  };
+  const selectedPriority = actionPriorities.find((item) => item.id === state.priority);
+
+  useEffect(() => {
+    if (!existingAction && !selectedPriority && actionPriorities[0]) onUpdate({ priority: actionPriorities[0].id, dueDate: getPriorityDueDate(actionPriorities[0].id) });
+  }, [actionPriorities, existingAction, onUpdate, selectedPriority]);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -2908,12 +2913,12 @@ function ActionDialog({
               />
             </div>
 
-            <div className={`rounded-lg border p-4 ${requiresAction && state.evidence.length === 0 ? "border-destructive/45 bg-destructive/[0.035]" : "bg-muted/10"}`}>
+            <div className={`rounded-lg border p-4 ${requiresEvidence && state.evidence.length === 0 ? "border-destructive/45 bg-destructive/[0.035]" : "bg-muted/10"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <FileText className="size-4 text-muted-foreground" />
-                    <p className="text-xs font-medium">{t("action.originalEvidence")} {requiresAction ? <span className="text-destructive">*</span> : <span className="font-normal text-muted-foreground">({t("common.optional")})</span>}</p>
+                    <p className="text-xs font-medium">{t("action.originalEvidence")} {requiresEvidence ? <span className="text-destructive">*</span> : <span className="font-normal text-muted-foreground">({t("common.optional")})</span>}</p>
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">{t("action.evidenceHelp")}</p>
                 </div>
@@ -2924,7 +2929,7 @@ function ActionDialog({
                   <Button type="button" size="sm" variant="outline" className="order-1 flex-1 sm:order-2 sm:flex-none" onClick={() => evidenceCameraRef.current?.click()}><Camera className="mr-1.5 size-3.5" /> {t("common.camera")}</Button>
                 </div>}
               </div>
-              {state.evidence.length > 0 ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{state.evidence.map((evidence) => <div key={evidence.id} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background p-2"><button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => onEvidencePreview(evidence)}>{evidence.type === "image" ? <img src={evidence.dataUrl} alt="" className="size-11 shrink-0 rounded object-cover" /> : <span className="grid size-11 shrink-0 place-items-center rounded bg-muted"><FileText className="size-5" /></span>}<span className="min-w-0"><span className="block truncate text-xs font-medium">{evidence.name}</span><span className="text-[10px] text-muted-foreground">{getEvidenceFileLabel(evidence)} · {formatEvidenceSize(evidence.size)}</span></span></button>{canEditCreatedAction && <Button type="button" size="icon-sm" variant="ghost" onClick={() => onEvidenceRemove(evidence.id)} aria-label={`Remove ${evidence.name}`}><Trash2 className="size-3.5" /></Button>}</div>)}</div> : requiresAction && <p className="mt-3 text-[11px] font-medium text-destructive">At least one evidence attachment is required for Non Compliance or Partial Compliance.</p>}
+              {state.evidence.length > 0 ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{state.evidence.map((evidence) => <div key={evidence.id} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background p-2"><button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => onEvidencePreview(evidence)}>{evidence.type === "image" ? <img src={evidence.dataUrl} alt="" className="size-11 shrink-0 rounded object-cover" /> : <span className="grid size-11 shrink-0 place-items-center rounded bg-muted"><FileText className="size-5" /></span>}<span className="min-w-0"><span className="block truncate text-xs font-medium">{evidence.name}</span><span className="text-[10px] text-muted-foreground">{getEvidenceFileLabel(evidence)} · {formatEvidenceSize(evidence.size)}</span></span></button>{canEditCreatedAction && <Button type="button" size="icon-sm" variant="ghost" onClick={() => onEvidenceRemove(evidence.id)} aria-label={`Remove ${evidence.name}`}><Trash2 className="size-3.5" /></Button>}</div>)}</div> : requiresEvidence && <p className="mt-3 text-[11px] font-medium text-destructive">At least one evidence attachment is required for Non Compliance or Partial Compliance.</p>}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -2944,7 +2949,7 @@ function ActionDialog({
                     <SelectValue placeholder={t("action.selectCategory")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {FIVE_S_ACTION_CATEGORIES.map((category) => <SelectItem key={category} value={category}>{actionCategoryLabel(category)}</SelectItem>)}
+                    {actionCategories.map((category) => <SelectItem key={category} value={category}>{actionCategoryLabel(category)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <p className={`mt-1.5 text-[11px] ${state.actionCategory ? "text-muted-foreground" : "font-medium text-destructive"}`}>{t("action.categoryRequired")}</p>
@@ -2971,10 +2976,7 @@ function ActionDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Critical"><span className="font-medium text-red-600 dark:text-red-400">Critical</span></SelectItem>
-                    <SelectItem value="High"><span className="font-medium text-orange-600 dark:text-orange-400">High</span></SelectItem>
-                    <SelectItem value="Medium"><span className="font-medium text-amber-600 dark:text-amber-400">Medium</span></SelectItem>
-                    <SelectItem value="Low"><span className="font-medium text-emerald-600 dark:text-emerald-400">Low</span></SelectItem>
+                    {actionPriorities.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -2996,7 +2998,7 @@ function ActionDialog({
                   disabled={!canEditCreatedAction}
                 />
                 <p className={`mt-1.5 text-[11px] ${dueDateInvalid ? "text-destructive" : "text-muted-foreground"}`}>
-                  {dueDateInvalid ? "Due Date cannot be in the past." : priorityHelper[state.priority]}
+                  {dueDateInvalid ? "Due Date cannot be in the past." : `Defaulted to ${selectedPriority?.dueOffsetDays ?? 0} day${selectedPriority?.dueOffsetDays === 1 ? "" : "s"} from today based on ${selectedPriority?.label ?? state.priority} priority`}
                 </p>
               </div>
             </div>
@@ -3034,7 +3036,7 @@ function ActionDialog({
                 !state.actionTitle.trim() ||
                 !state.actionCategory ||
                 dueDateInvalid ||
-                (requiresAction && state.evidence.length === 0)
+                (requiresEvidence && state.evidence.length === 0)
               }
             >
               {saving ? (

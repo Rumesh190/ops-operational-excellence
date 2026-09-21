@@ -1,6 +1,18 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useAdminUsers } from "@/features/five-s/administration/store";
+import { usePersonalSettings } from "@/lib/profile-settings";
+
+export interface DemoUser {
+  id: string;
+  name: string;
+  role: string;
+  initials: string;
+  plant: string;
+  primaryZone: string;
+  isSuperAdmin: boolean;
+}
 
 export const DEMO_USERS = {
   auditor: {
@@ -10,6 +22,7 @@ export const DEMO_USERS = {
     initials: "LK",
     plant: "Egmore Plant",
     primaryZone: "Zone A",
+    isSuperAdmin: false,
   },
   leader: {
     id: "USR-RUMESH",
@@ -18,6 +31,7 @@ export const DEMO_USERS = {
     initials: "RU",
     plant: "Egmore Plant",
     primaryZone: "Zone B",
+    isSuperAdmin: false,
   },
   responsible: {
     id: "USR-SIVA-KUMAR",
@@ -26,10 +40,19 @@ export const DEMO_USERS = {
     initials: "SK",
     plant: "Egmore Plant",
     primaryZone: "Zone B",
+    isSuperAdmin: false,
   },
-} as const;
+  superAdmin: {
+    id: "USR-OPS-SUPER-ADMIN",
+    name: "OPS Super Admin",
+    role: "Platform Administrator",
+    initials: "SA",
+    plant: "All organizations",
+    primaryZone: "Platform",
+    isSuperAdmin: true,
+  },
+} as const satisfies Record<string, DemoUser>;
 
-export type DemoUser = (typeof DEMO_USERS)[keyof typeof DEMO_USERS];
 export type DemoRole = keyof typeof DEMO_USERS;
 
 /** Default identity used during server rendering and for the audit workflow. */
@@ -44,7 +67,7 @@ function loadStoredRole() {
   if (storageLoaded || typeof window === "undefined") return;
   storageLoaded = true;
   const storedRole = window.localStorage.getItem(STORAGE_KEY);
-  if (storedRole === "auditor" || storedRole === "leader" || storedRole === "responsible") activeRole = storedRole;
+  if (storedRole === "auditor" || storedRole === "leader" || storedRole === "responsible" || storedRole === "superAdmin") activeRole = storedRole;
 }
 
 function subscribe(listener: () => void) {
@@ -70,6 +93,21 @@ export function setDemoRole(role: DemoRole) {
   listeners.forEach((listener) => listener());
 }
 
+export function getCurrentDemoUser() {
+  return getSnapshot();
+}
+
 export function useCurrentUser() {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const identity = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const configured = useAdminUsers().find((user) => user.id === identity.id);
+  const personal = usePersonalSettings(identity.id);
+  const name = personal.profile.fullName || configured?.name || identity.name;
+  return {
+    ...identity,
+    name,
+    initials: name.split(/\s+/).filter(Boolean).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase() || identity.initials,
+    plant: configured?.plant ?? identity.plant,
+    primaryZone: configured?.zoneMemberships[0]?.zone ?? identity.primaryZone,
+    photo: personal.profile.photo,
+  };
 }

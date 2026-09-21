@@ -6,10 +6,9 @@ import { ArrowLeft, Check, Info, LoaderCircle, LockKeyhole } from "lucide-react"
 import { getNextFiveSAuditTitle } from "@/lib/five-s/audit-store";
 import { useCurrentUser } from "@/lib/current-user";
 import {
-  FIVE_S_ZONE_CONFIGURATION,
   canAuditZone,
-  getFiveSZoneConfiguration,
   toLocalInputDate,
+  useFiveSZoneConfiguration,
 } from "@/lib/five-s/configuration";
 import FiveSPageHeader from "./FiveSPageHeader";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useI18n } from "@/components/preferences/use-i18n";
+import { useAdminUsers } from "@/features/five-s/administration/store";
 
 interface FiveSAuditCreateProps {
   onBack: () => void;
@@ -104,6 +104,10 @@ function SummaryItem({ label, value, mono = false }: { label: string; value: str
 export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreateProps) {
   const { locale, t } = useI18n();
   const currentUser = useCurrentUser();
+  const adminUser = useAdminUsers().find((user) => user.id === currentUser.id);
+  const currentPlant = adminUser?.plant ?? currentUser.plant;
+  const currentZone = adminUser?.zoneMemberships[0]?.zone ?? currentUser.primaryZone;
+  const zoneConfiguration = useFiveSZoneConfiguration();
   const createdAt = useMemo(() => new Date(), []);
   const today = useMemo(() => toLocalInputDate(createdAt), [createdAt]);
   const defaultDueDate = useMemo(() => {
@@ -116,9 +120,9 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [starting, setStarting] = useState(false);
 
-  const selectedZone = getFiveSZoneConfiguration(zone);
+  const selectedZone = zoneConfiguration.find((item) => item.name === zone);
   const generatedAuditTitle = zone
-    ? getNextFiveSAuditTitle(currentUser.plant, zone)
+    ? getNextFiveSAuditTitle(currentPlant, zone)
     : "";
 
   const createdDate = new Intl.DateTimeFormat(locale, {
@@ -132,15 +136,15 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
     hour12: true,
   }).format(createdAt);
 
-  const ownZoneSelected = Boolean(zone && !canAuditZone(currentUser, zone));
+  const ownZoneSelected = Boolean(zone && !canAuditZone({ primaryZone: currentZone }, zone));
   const isValid = Boolean(selectedZone && generatedAuditTitle && dueDate >= today && !ownZoneSelected);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isValid || !selectedZone || starting || !canAuditZone(currentUser, selectedZone.name)) return;
+    if (!isValid || !selectedZone || starting || !canAuditZone({ primaryZone: currentZone }, selectedZone.name)) return;
 
     setStarting(true);
-    window.setTimeout(() => onStart({ title: generatedAuditTitle, plant: currentUser.plant, department: selectedZone.department, area: selectedZone.name, auditor: currentUser.name, dueDate }), 220);
+    window.setTimeout(() => onStart({ title: generatedAuditTitle, plant: currentPlant, department: selectedZone.department, area: selectedZone.name, auditor: currentUser.name, dueDate }), 220);
   }
 
   return (
@@ -177,7 +181,7 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
                 <p className="mt-1 text-sm text-muted-foreground">{t("audit.workplaceHelp")}</p>
 
                 <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-                  <ReadOnlyField label={t("audit.plant")} value={currentUser.plant} placeholder={t("audit.profilePlantUnavailable")} />
+                  <ReadOnlyField label={t("audit.plant")} value={currentPlant} placeholder={t("audit.profilePlantUnavailable")} />
 
                   <div className="grid gap-2">
                     <Label>{t("audit.zone")}</Label>
@@ -186,8 +190,8 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
                         <SelectValue placeholder={t("audit.selectZone")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {FIVE_S_ZONE_CONFIGURATION.map((item) => (
-                          <SelectItem key={item.code} value={item.name} disabled={item.name === currentUser.primaryZone}>{item.name}{item.name === currentUser.primaryZone ? ` — ${t("audit.ownZone")}` : ""}</SelectItem>
+                        {zoneConfiguration.map((item) => (
+                          <SelectItem key={item.code} value={item.name} disabled={item.name === currentZone}>{item.name}{item.name === currentZone ? ` — ${t("audit.ownZone")}` : ""}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -234,7 +238,7 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
                   <h2 className="text-sm font-semibold">{t("audit.summary")}</h2>
                   <div className="mt-4 grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2 2xl:grid-cols-4">
                     <SummaryItem label={t("audit.auditId")} value={generatedAuditTitle || t("audit.pendingZoneSelection")} mono />
-                    <SummaryItem label={t("audit.plant")} value={currentUser.plant} />
+                    <SummaryItem label={t("audit.plant")} value={currentPlant} />
                     <SummaryItem label={t("audit.zone")} value={selectedZone?.name || t("common.notSelected")} />
                     <SummaryItem label={t("audit.zoneLeader")} value={selectedZone?.leader || t("common.pending")} />
                     <SummaryItem label={t("audit.auditor")} value={currentUser.name} />

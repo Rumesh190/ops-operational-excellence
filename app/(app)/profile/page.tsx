@@ -1,19 +1,9 @@
-import { UserCircle } from "lucide-react";
+import { ProfileSettingsPage } from "@/features/profile/profile-page";
 
-import { ComingSoonPanel } from "@/components/layout/coming-soon-panel";
-import { PageContainer } from "@/components/layout/page-container";
+const PROFILE_TABS = ["profile", "security", "preferences", "notifications"] as const;
 
-export default function ProfilePage() {
-  return (
-    <PageContainer
-      title="Profile Settings"
-      description="Manage your profile, password, and account preferences."
-    >
-      <ComingSoonPanel
-        icon={UserCircle}
-        title="Profile settings are coming soon"
-        description="My Profile, Change Password, and account preferences will be built here."
-      />
-    </PageContainer>
-  );
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
+  const initialTab = PROFILE_TABS.find((item) => item === tab) ?? "profile";
+  return <ProfileSettingsPage initialTab={initialTab} />;
 }

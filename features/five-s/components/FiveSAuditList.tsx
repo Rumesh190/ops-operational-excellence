@@ -65,6 +65,9 @@ interface FiveSAuditListProps {
   onDeleteAudit?: (
     audit: FiveSAudit
   ) => void;
+
+  /** Optional navigation bar rendered between the page header and content. */
+  nav?: React.ReactNode;
 }
 
 /* =========================================================
@@ -248,6 +251,7 @@ export default function FiveSAuditList({
   onStartAudit,
   onViewAudit,
   onDeleteAudit,
+  nav,
 }: FiveSAuditListProps) {
   const router = useRouter();
   const { locale, t } = useI18n();
@@ -488,7 +492,7 @@ export default function FiveSAuditList({
           ===================================================== */}
 
       <FiveSPageHeader
-        eyebrow="5S Workspace"
+        eyebrow="OPS Workspace"
         title="Audits"
         description={`${audits.length} audits across all plants`}
         actions={
@@ -773,6 +777,8 @@ export default function FiveSAuditList({
         </div>
       </div>
       </FiveSPageHeader>
+
+      {nav}
 
       {/* =====================================================
           TABLE

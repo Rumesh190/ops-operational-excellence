@@ -559,8 +559,13 @@ export function createFiveSAudit(
   const now =
     new Date();
 
-  const sections =
-    input.sections ?? [];
+  const sections = (input.sections ?? []).map((section) => ({
+    ...section,
+    questions: section.questions.map((question) => ({
+      ...question,
+      evidence: (question.evidence ?? []).map((evidence) => ({ ...evidence })),
+    })),
+  }));
 
   /**
    * Reserve a permanent running number.
@@ -586,6 +591,7 @@ export function createFiveSAudit(
 
   const audit: FiveSAudit = {
     ...input,
+    sections,
 
     /**
      * Keep an internal unique ID separate

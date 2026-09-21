@@ -1,0 +1,51 @@
+"use client";
+/* eslint-disable @next/next/no-img-element -- action evidence may use captured data URLs. */
+
+import Link from "next/link";
+import { ArrowLeft, ExternalLink, FileText, ImageIcon, Printer } from "lucide-react";
+
+import { PageContainer } from "@/components/layout/page-container";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getRoleVisibleActions } from "@/features/actions/action-center-data";
+import { useAdminUsers } from "@/features/five-s/administration/store";
+import type { MyActionEvidence } from "@/features/five-s/types/my-actions";
+import { getActionSourceDefinition, getActionSourceHref } from "@/lib/actions/action-config";
+import { useActionStore } from "@/lib/actions/action-store";
+import { useCurrentUser } from "@/lib/current-user";
+
+export default function ActionProgressReportPage({ actionId }: { actionId: string }) {
+  const currentUser = useCurrentUser();
+  const adminUser = useAdminUsers().find((user) => user.id === currentUser.id);
+  const action = getRoleVisibleActions(useActionStore(), currentUser, adminUser).find((record) => record.id === actionId);
+  if (!action) return <Unavailable title="Action report unavailable" description="This Action does not exist or is outside your permitted scope." />;
+  if (action.status === "Completed") return <PageContainer><div className="grid min-h-[50vh] place-items-center text-center"><div><FileText className="mx-auto size-8 text-muted-foreground" /><h1 className="mt-4 text-lg font-semibold">Final report available</h1><p className="mt-1 text-sm text-muted-foreground">This Action has a completed closure report.</p><Button className="mt-5" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action.id)}/report?from=reports-action&returnTo=${encodeURIComponent("/reports?tab=actions")}`} />}>Open Final Report</Button></div></div></PageContainer>;
+  const source = getActionSourceDefinition(action);
+  const sourceHref = getActionSourceHref(action);
+  const history = action.activityHistory ?? action.reviewHistory ?? [];
+
+  return <PageContainer className="max-w-none">
+    <div className="ops-action-report-toolbar flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href="/reports?tab=actions" />} aria-label="Back to Action Reports"><ArrowLeft className="size-4" /></Button><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">Reports / Actions</p><h1 className="mt-1 text-xl font-semibold">Draft Action Report</h1><p className="mt-1 text-xs text-muted-foreground">A point-in-time report generated from the current Action record.</p></div></div><div className="flex flex-wrap gap-2"><Button variant="outline" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action.id)}`} />}><ExternalLink className="size-4" />View Action</Button><Button onClick={() => window.print()}><Printer className="size-4" />Print / Save PDF</Button></div></div>
+
+    <article className="ops-action-progress-report mx-auto w-full max-w-[1080px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-950 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+      <header className="ops-action-report-block border-b bg-slate-950 px-6 py-7 text-white sm:px-8"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-sky-300">OPS · Operational Excellence Platform</p><div className="mt-3 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-semibold">Action Report</h2><p className="mt-1 font-mono text-xs text-slate-300">{action.id}</p></div><Badge variant="warning">Draft · {action.status}</Badge></div><h3 className="mt-5 text-xl font-semibold">{action.title}</h3></header>
+      <section className="ops-action-report-block grid gap-px border-b bg-slate-200 dark:bg-slate-700 sm:grid-cols-3 lg:grid-cols-4"><Meta label="Plant" value={action.plant} /><Meta label="Zone" value={action.area} /><Meta label="Department" value={action.department} /><Meta label="Priority" value={action.priority} /><Meta label="Action Owner" value={action.responsiblePersonName ?? action.assignedTo} /><Meta label="Zone Leader" value={action.zoneLeaderName ?? "—"} /><Meta label="Assigned By" value={action.assignedByName ?? action.createdByName ?? action.auditor ?? "—"} /><Meta label="Created Date" value={formatDate(action.createdAt)} /><Meta label="Due Date" value={formatDate(action.dueDate)} /><Meta label="Closed Date" value={formatDate(action.closedAt ?? action.completedAt)} /><Meta label="Closed By" value={action.closedBy ?? action.reviewedBy ?? "Awaiting closure"} /><Meta label="Completed Person" value={action.completedByName ?? "Awaiting completion"} /><Meta label="Source Module" value={source.label} /><Meta label="Source Record" value={action.sourceId ?? action.sourceTitle} /></section>
+      <div className="grid gap-6 p-5 sm:p-7">
+        <section className="ops-action-report-block grid gap-4 md:grid-cols-2"><ReportText title="Original Issue" text={action.originalFinding ?? action.sourceObservation ?? action.description} /><ReportText title="Current Work / Completion Notes" text={action.actionTakenDescription ?? action.resolutionObservation ?? "No completion notes recorded yet."} /></section>
+        <section className="ops-action-report-block grid gap-4 md:grid-cols-2"><EvidencePanel label="Before Evidence" evidence={action.issueEvidence ?? []} /><EvidencePanel label="Progress / Completion Evidence" evidence={[...(action.progressEvidence ?? []), ...action.evidence]} /></section>
+        <section className="ops-action-report-block grid gap-4 md:grid-cols-3"><Summary label="Status" value={action.status} /><Summary label="Cost Saving" value={action.costSaving === undefined ? "Not recorded" : `${action.currency ?? "INR"} ${action.costSaving.toLocaleString("en-IN")}`} /><Summary label="Review" value={action.reviewedBy ? `Reviewed by ${action.reviewedBy}` : "Not reviewed"} /></section>
+        <section className="ops-action-report-block"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">Review & Activity History</h3><Badge variant="secondary">{history.length}</Badge></div><div className="mt-3 overflow-hidden rounded-lg border"><div className="divide-y">{history.map((entry) => <div key={entry.id} className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr_170px]"><p className="text-xs font-semibold">{humanStatus(entry.type)}</p><p className="text-xs">{entry.remark ?? "Status updated"}</p><p className="text-[11px] text-slate-500">{entry.actorName} · {formatDate(entry.createdAt, true)}</p></div>)}{!history.length && <p className="p-5 text-center text-xs text-slate-500">No activity history recorded.</p>}</div></div></section>
+        {sourceHref && <section className="ops-action-report-block border-t pt-4 text-xs"><span className="text-slate-500">Operational source: </span><Link href={sourceHref} className="font-semibold text-blue-700 hover:underline dark:text-blue-300">{action.sourceId ?? action.sourceTitle}</Link></section>}
+      </div>
+      <footer className="border-t px-6 py-4 text-[10px] text-slate-500 sm:px-8">Draft report · Generated from the live Action record</footer>
+    </article>
+  </PageContainer>;
+}
+
+function EvidencePanel({ label, evidence }: { label: string; evidence: MyActionEvidence[] }) { return <section className="overflow-hidden rounded-lg border"><h3 className="border-b bg-slate-50 px-4 py-3 text-xs font-semibold dark:bg-slate-800">{label}</h3><div className="grid grid-cols-2 gap-2 p-3">{evidence.map((item) => <figure key={item.id} className="overflow-hidden rounded border">{item.type === "image" && item.url ? <img src={item.url} alt={item.name} className="aspect-[4/3] w-full object-cover" /> : <div className="grid aspect-[4/3] place-items-center bg-slate-50 text-slate-400 dark:bg-slate-800"><ImageIcon className="size-5" /></div>}<figcaption className="truncate px-2 py-1.5 text-[10px] text-slate-500">{item.name}</figcaption></figure>)}{!evidence.length && <p className="col-span-2 py-8 text-center text-xs text-slate-500">No evidence captured.</p>}</div></section>; }
+function Meta({ label, value }: { label: string; value: string }) { return <div className="bg-white p-4 dark:bg-slate-900"><p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-xs font-semibold leading-5">{value}</p></div>; }
+function ReportText({ title, text }: { title: string; text: string }) { return <div className="rounded-lg border p-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p><p className="mt-2 text-sm leading-6">{text}</p></div>; }
+function Summary({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border bg-slate-50/60 p-4 text-center dark:bg-slate-800/30"><p className="text-base font-semibold">{value}</p><p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">{label}</p></div>; }
+function Unavailable({ title, description }: { title: string; description: string }) { return <PageContainer><div className="grid min-h-[50vh] place-items-center text-center"><div><FileText className="mx-auto size-8 text-muted-foreground" /><h1 className="mt-4 text-lg font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{description}</p><Button className="mt-5" variant="outline" nativeButton={false} render={<Link href="/reports?tab=actions" />}>Back to Reports</Button></div></div></PageContainer>; }
+function formatDate(value?: string, withTime = false) { if (!value) return "—"; const date = new Date(value.includes("T") ? value : `${value}T00:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-IN", withTime ? { dateStyle: "medium", timeStyle: "short" } : { day: "2-digit", month: "short", year: "numeric" }).format(date); }
+function humanStatus(value: string) { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }

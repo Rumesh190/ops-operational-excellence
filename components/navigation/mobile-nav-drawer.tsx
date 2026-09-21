@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ClipboardCheck, Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,11 +13,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { SidebarNav } from "@/components/navigation/sidebar-nav"
+import { SidebarNav, SuperAdminSidebarNav } from "@/components/navigation/sidebar-nav"
+import { SidebarFooter } from "@/components/navigation/sidebar-footer"
+import { useCurrentUser } from "@/lib/current-user"
 
 /** Slide-in navigation for viewports below `lg`, mirroring the desktop Sidebar. */
 function MobileNavDrawer() {
   const [open, setOpen] = React.useState(false)
+  const pathname = usePathname()
+  const currentUser = useCurrentUser()
+  const superAdminContext = pathname.startsWith("/super-admin") && currentUser.isSuperAdmin
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -32,11 +38,11 @@ function MobileNavDrawer() {
       >
         <Menu className="size-5" />
       </SheetTrigger>
-      <SheetContent side="right" className="w-[min(100vw,380px)] max-w-none border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
-        <SheetHeader className="h-14 border-b border-sidebar-border px-4 py-0">
+      <SheetContent side="left" className="ops-sidebar flex w-[min(88vw,304px)] max-w-none flex-col border-white/[0.08] bg-[#0d1522] p-0 text-slate-100">
+        <SheetHeader className="h-16 border-b border-white/[0.07] px-4 py-0">
           <SheetTitle>
             <Link
-              href="/5s"
+              href="/dashboard"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5"
             >
@@ -44,15 +50,16 @@ function MobileNavDrawer() {
                 <ClipboardCheck className="size-[18px]" />
               </span>
               <span className="text-left leading-tight">
-                <span className="block text-[15px] font-semibold">5S</span>
-                <span className="mt-0.5 block text-xs font-medium text-[#707682] dark:text-sidebar-foreground/60">Operations workspace</span>
+                <span className="block text-[15px] font-semibold">OPS</span>
+                <span className="mt-0.5 block text-[11px] font-medium text-slate-400">{superAdminContext ? "Platform Administration" : "Operational Excellence Platform"}</span>
               </span>
             </Link>
           </SheetTitle>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto py-4">
-          <SidebarNav onNavigate={() => setOpen(false)} />
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
+          {superAdminContext ? <SuperAdminSidebarNav onNavigate={() => setOpen(false)} /> : <SidebarNav onNavigate={() => setOpen(false)} />}
         </div>
+        <SidebarFooter context={superAdminContext ? "super-admin" : "ops"} onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   )

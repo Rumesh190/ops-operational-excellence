@@ -13,6 +13,7 @@ import {
 
 interface UiPreferencesContextValue extends UiPreferences {
   setNavigationPosition: (position: NavigationPosition) => void
+  setSidebarCollapsed: (collapsed: boolean) => void
   setAccentColor: (color: AccentColor) => void
   setLanguage: (language: AppLanguage) => void
 }
@@ -21,6 +22,7 @@ const UiPreferencesContext = React.createContext<UiPreferencesContextValue | nul
 
 function applyPreferences(preferences: UiPreferences) {
   document.documentElement.dataset.navigation = preferences.navigationPosition
+  document.documentElement.dataset.sidebar = preferences.sidebarCollapsed ? "collapsed" : "expanded"
   document.documentElement.dataset.accent = preferences.accentColor
   document.documentElement.lang = preferences.language
   document.documentElement.dataset.language = preferences.language
@@ -34,9 +36,11 @@ function UiPreferencesProvider({ children }: { children: React.ReactNode }) {
     const navigationPosition = root.dataset.navigation as NavigationPosition | undefined
     const accentColor = root.dataset.accent as AccentColor | undefined
     const language = root.dataset.language as AppLanguage | undefined
+    const sidebarCollapsed = root.dataset.sidebar === "collapsed"
 
     return {
       navigationPosition: navigationPosition ?? DEFAULT_UI_PREFERENCES.navigationPosition,
+      sidebarCollapsed,
       accentColor: accentColor ?? DEFAULT_UI_PREFERENCES.accentColor,
       language: language ?? DEFAULT_UI_PREFERENCES.language,
     }
@@ -52,6 +56,8 @@ function UiPreferencesProvider({ children }: { children: React.ReactNode }) {
     ...preferences,
     setNavigationPosition: (navigationPosition) =>
       updatePreferences({ ...preferences, navigationPosition }),
+    setSidebarCollapsed: (sidebarCollapsed) =>
+      updatePreferences({ ...preferences, sidebarCollapsed }),
     setAccentColor: (accentColor) =>
       updatePreferences({ ...preferences, accentColor }),
     setLanguage: (language) =>

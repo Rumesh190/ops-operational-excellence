@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarDays, Camera, CheckCircle2, Eye, Flag, Image as ImageIcon, Package, Plus, Printer, Search, Trash2, Upload, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, Camera, CheckCircle2, ExternalLink, Eye, Flag, Image as ImageIcon, Link2, LockKeyhole, Package, Plus, Printer, Search, Trash2, Upload, UserRound } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { Badge } from "@/components/ui/badge";
@@ -14,15 +17,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import FiveSPageHeader from "@/features/five-s/components/FiveSPageHeader";
+import { CreateLinkedActionDialog, type LinkedActionContext } from "@/features/actions/create-linked-action-dialog";
+import { hasPermission } from "@/features/five-s/administration/permissions";
+import { useAdminUsers } from "@/features/five-s/administration/store";
 import { FIVE_S_ZONE_CONFIGURATION, getMembersForZone, toLocalInputDate } from "@/lib/five-s/configuration";
 import { useCurrentUser } from "@/lib/current-user";
-import { createRedTag, markTagPrinted, useRedTags } from "./store";
-import { RED_TAG_REASONS, RED_TAG_SECTIONS, type RedTag, type RedTagReason, type RedTagStatus } from "./types";
+import { ACTION_STATUS_CONFIG, getActionDueLabel } from "@/lib/actions/action-config";
+import { useActionStore } from "@/lib/actions/action-store";
+import { addRedTagAfterEvidence, closeRedTagAfterRemoval, createRedTag, linkRedTagAction, markTagPrinted, reconcileRedTagActions, useRedTags, verifyRedTag } from "./store";
+import { RED_TAG_DISPOSITIONS, RED_TAG_REASONS, RED_TAG_SECTIONS, type RedTag, type RedTagDisposition, type RedTagEvidence, type RedTagReason, type RedTagStatus } from "./types";
 import { useI18n } from "@/components/preferences/use-i18n";
 import { optimizeEvidenceImage } from "@/lib/evidence-images";
+import { canCreateRedTag } from "./access";
+import { RedTagNav } from "./red-tag-nav";
 
 const STATUS_TONE: Record<RedTagStatus, "danger" | "warning" | "success" | "secondary"> = {
-  Open: "danger", "In Progress": "warning", Resolved: "success", Closed: "secondary",
+  Open: "danger", "In Progress": "warning", "Awaiting Verification": "success", Closed: "secondary",
 };
 
 function displayDate(value: string, time = false) {
@@ -30,7 +40,7 @@ function displayDate(value: string, time = false) {
 }
 
 function Summary({ tags }: { tags: RedTag[] }) {
-  const items = ["Total Tags", "Open", "In Progress", "Resolved"].map((label) => ({
+  const items = ["Total Tags", "Open", "In Progress", "Awaiting Verification"].map((label) => ({
     label, value: label === "Total Tags" ? tags.length : tags.filter((tag) => tag.status === label).length,
   }));
   return <div className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card shadow-sm sm:grid-cols-4">
@@ -44,6 +54,9 @@ export function RedTagListPage() {
   const router = useRouter();
   const { t } = useI18n();
   const tags = useRedTags();
+  const currentUser = useCurrentUser();
+  const adminUser = useAdminUsers().find((item) => item.id === currentUser.id);
+  const mayCreate = canCreateRedTag(adminUser);
   const [search, setSearch] = useState(""); const [status, setStatus] = useState("All"); const [section, setSection] = useState("All");
   const [reason, setReason] = useState("All"); const [person, setPerson] = useState("All"); const [date, setDate] = useState("");
   const people = [...new Set(tags.map((tag) => tag.responsiblePersonName))];
@@ -55,13 +68,14 @@ export function RedTagListPage() {
       (!date || tag.createdAt.slice(0, 10) === date);
   });
   return <PageContainer className="max-w-none">
-    <FiveSPageHeader eyebrow="5S Workspace" title="Red Tags" description="Track and manage tagged workplace issues."
-      actions={<Button onClick={() => router.push("/5s/red/create")}><Plus className="size-4" /> {t("redTag.create")}</Button>} />
+    <FiveSPageHeader eyebrow="5S Workplace Organization" title="5S Red Tags" description="Identify, label, and track items that should be removed or dispositioned from the workplace."
+      actions={mayCreate ? <Button onClick={() => router.push("/5s/red/create")}><Plus className="size-4" /> {t("redTag.create")}</Button> : undefined} />
+    <RedTagNav />
     <Summary tags={tags} />
     <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
       <div className="grid gap-2 border-b bg-muted/15 p-3 md:grid-cols-3 xl:grid-cols-[minmax(220px,1.5fr)_repeat(5,minmax(130px,1fr))]">
         <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Search tags or items..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <Filter value={status} onChange={setStatus} label="All statuses" options={["Open", "In Progress", "Resolved", "Closed"]} />
+        <Filter value={status} onChange={setStatus} label="All statuses" options={["Open", "In Progress", "Awaiting Verification", "Closed"]} />
         <Filter value={section} onChange={setSection} label="All sections" options={[...RED_TAG_SECTIONS]} />
         <Filter value={reason} onChange={setReason} label="All reasons" options={[...RED_TAG_REASONS]} />
         <Filter value={person} onChange={setPerson} label="All responsible" options={people} />
@@ -69,12 +83,12 @@ export function RedTagListPage() {
       </div>
       <div className="grid gap-3 p-3 md:hidden">{filtered.map((tag) => <button key={tag.id} onClick={() => router.push(`/5s/red/${tag.id}`)} className="min-w-0 rounded-xl border bg-background p-4 text-left active:bg-muted/40"><div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-xs font-bold text-red-700 dark:text-red-400">{tag.tagNumber}</p><h2 className="mt-1 break-words font-semibold">{tag.itemName}</h2></div><Badge variant={STATUS_TONE[tag.status]}>{tag.status}</Badge></div><dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-sm"><div><dt className="text-xs text-muted-foreground">Section</dt><dd className="mt-1 break-words font-medium">{tag.section}</dd></div><div><dt className="text-xs text-muted-foreground">Reason</dt><dd className="mt-1 break-words font-medium">{tag.reason}</dd></div><div><dt className="text-xs text-muted-foreground">Responsible</dt><dd className="mt-1 break-words font-medium">{tag.responsiblePersonName}</dd></div><div><dt className="text-xs text-muted-foreground">Target</dt><dd className="mt-1 font-medium">{displayDate(tag.targetDate)}</dd></div></dl></button>)}</div>
       <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1180px] text-sm"><thead className="border-b bg-muted/20 text-left text-[11px] uppercase tracking-wide text-muted-foreground"><tr>
-        {["Tag No.", "Item / Issue", "Section", "Reason", "Responsible Person", "Target Date", "Status", "Created By", "Created Date", "Actions"].map((h) => <th key={h} className="px-4 py-3 font-semibold">{h}</th>)}
+        {["Tag ID", "Item / Issue", "Location", "Responsible Person", "Target Date", "Status", "Linked Action", "Actions"].map((h) => <th key={h} className="px-4 py-3 font-semibold">{h}</th>)}
       </tr></thead><tbody>{filtered.map((tag) => <tr key={tag.id} className="border-b last:border-0 hover:bg-muted/20">
         <td className="px-4 py-3 font-mono text-xs font-semibold text-red-700 dark:text-red-400">{tag.tagNumber}</td><td className="px-4 py-3 font-medium">{tag.itemName}</td>
-        <td className="px-4 py-3">{tag.section}</td><td className="px-4 py-3">{tag.reason}</td><td className="px-4 py-3">{tag.responsiblePersonName}</td>
+        <td className="px-4 py-3">{tag.zone} · {tag.section}</td><td className="px-4 py-3">{tag.responsiblePersonName}</td>
         <td className="px-4 py-3 whitespace-nowrap">{displayDate(tag.targetDate)}</td><td className="px-4 py-3"><Badge variant={STATUS_TONE[tag.status]}>{tag.status}</Badge></td>
-        <td className="px-4 py-3">{tag.createdByName}</td><td className="px-4 py-3 whitespace-nowrap">{displayDate(tag.createdAt)}</td><td className="px-4 py-3"><Button size="sm" variant="ghost" onClick={() => router.push(`/5s/red/${tag.id}`)}><Eye className="size-4" /> View</Button></td>
+        <td className="px-4 py-3 font-mono text-xs">{tag.actionId ?? "—"}</td><td className="px-4 py-3"><Button size="sm" variant="ghost" onClick={() => router.push(`/5s/red/${tag.id}`)}><Eye className="size-4" /> View</Button></td>
       </tr>)}</tbody></table></div>
       {filtered.length === 0 && <div className="py-14 text-center text-sm text-muted-foreground">No Red Tags match the selected filters.</div>}
     </section>
@@ -86,6 +100,16 @@ function Filter({ value, onChange, label, options }: { value: string; onChange: 
 }
 
 export function RedTagCreatePage() {
+  const router = useRouter();
+  const currentUser = useCurrentUser();
+  const adminUser = useAdminUsers().find((item) => item.id === currentUser.id);
+  if (!canCreateRedTag(adminUser)) {
+    return <PageContainer><div className="grid min-h-[50vh] place-items-center rounded-xl border border-dashed"><div className="max-w-md text-center"><LockKeyhole className="mx-auto size-9 text-muted-foreground" /><h1 className="mt-3 font-semibold">Red Tag creation unavailable</h1><p className="mt-2 text-sm text-muted-foreground">You do not have permission to create Red Tags.</p><Button className="mt-4" variant="outline" onClick={() => router.push("/5s/red")}>Back to Red Tags</Button></div></div></PageContainer>;
+  }
+  return <RedTagCreateForm />;
+}
+
+function RedTagCreateForm() {
   const router = useRouter(); const user = useCurrentUser();
   const { t } = useI18n();
   const today = useMemo(() => toLocalInputDate(new Date()), []); const tomorrow = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return toLocalInputDate(d); }, []);
@@ -124,17 +148,86 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ReadOnly({ label, value }: { label: string; value: string }) { return <Field label={label}><div className="flex h-10 items-center rounded-md border bg-muted/35 px-3 text-sm font-medium">{value}</div></Field>; }
 
 export function RedTagDetailPage({ tagId }: { tagId: string }) {
-  const router = useRouter(); const tag = useRedTags().find((item) => item.id === tagId);
+  const router = useRouter();
+  const tags = useRedTags();
+  const actions = useActionStore();
+  const user = useCurrentUser();
+  const adminUser = useAdminUsers().find((item) => item.id === user.id);
+  const tag = tags.find((item) => item.id === tagId);
+  const action = tag?.actionId ? actions.find((item) => item.id === tag.actionId) : undefined;
+  const mayManage = hasPermission(adminUser, "red_tag.manage") || hasPermission(adminUser, "actions.review");
+  const [actionOpen, setActionOpen] = useState(false);
+  useEffect(() => { reconcileRedTagActions(actions); }, [actions]);
   if (!tag) return <Missing onBack={() => router.push("/5s/red")} />;
+  const actionContext: LinkedActionContext = {
+    source: "Red Tag", sourceModule: "redTag", sourceId: tag.id, sourceObservation: tag.remarks || tag.reason,
+    title: `Clear Red Tag ${tag.tagNumber}: ${tag.itemName}`, description: tag.requiredAction,
+    plant: tag.plant, zone: tag.zone, location: tag.section,
+    evidence: tag.imageUrl ? [{ id: `${tag.id}-ISSUE`, name: `${tag.tagNumber} issue`, type: "image", url: tag.imageUrl, uploadedAt: tag.createdAt, uploadedBy: tag.createdByName }] : [],
+    defaultResponsibleId: tag.responsiblePersonId, defaultDueDate: tag.targetDate,
+  };
   return <PageContainer className="max-w-none"><FiveSPageHeader eyebrow="Red Tags / Details" title={tag.tagNumber} description={`${tag.itemName} · ${tag.section}`}
     leading={<Button variant="ghost" size="icon-sm" onClick={() => router.push("/5s/red")}><ArrowLeft className="size-4" /></Button>}
     actions={<Button onClick={() => router.push(`/5s/red/${tag.id}/print`)}><Printer className="size-4" /> Print Tag</Button>} />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,.7fr)]"><div className="grid gap-5">
-      <Card><CardContent className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Meta icon={Package} label="Item / Equipment" value={tag.itemName} /><Meta icon={Flag} label="Status" value={tag.status} /><Meta label="Section" value={tag.section} /><Meta label="Quantity" value={String(tag.quantity)} /><Meta label="Reason" value={tag.reason === "Others" ? tag.customReason ?? tag.reason : tag.reason} /><Meta icon={UserRound} label="Responsible" value={tag.responsiblePersonName} /><Meta icon={CalendarDays} label="Target Date" value={displayDate(tag.targetDate)} /><Meta label="Tagged By" value={tag.createdByName} /></CardContent></Card>
+      <Card><CardContent className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4"><Meta icon={Package} label="Item / Equipment" value={tag.itemName} /><Meta icon={Flag} label="Status" value={tag.status} /><Meta label="Plant / Zone / Section" value={`${tag.plant} · ${tag.zone} · ${tag.section}`} /><Meta label="Quantity" value={String(tag.quantity)} /><Meta label="Reason" value={tag.reason === "Others" ? tag.customReason ?? tag.reason : tag.reason} /><Meta icon={UserRound} label="Responsible" value={tag.responsiblePersonName} /><Meta icon={CalendarDays} label="Target Date" value={displayDate(tag.targetDate)} /><Meta label="Tagged By" value={tag.createdByName} /></CardContent></Card>
       <div className="grid gap-5 md:grid-cols-2"><Panel title="Remarks" text={tag.remarks || "No remarks added."} /><Panel title="Required Action" text={tag.requiredAction} /></div>
-      <Card><CardContent className="p-5"><h2 className="font-semibold">Issue Photo</h2>{tag.imageUrl ? <img src={tag.imageUrl} alt={tag.itemName} className="mt-4 max-h-[420px] w-full rounded-lg border object-cover" /> : <div className="mt-4 grid h-40 place-items-center rounded-lg border border-dashed text-muted-foreground"><ImageIcon className="size-8" /></div>}</CardContent></Card>
+      <Card><CardContent className="p-5"><h2 className="font-semibold">Issue Evidence</h2>{tag.imageUrl ? <img src={tag.imageUrl} alt={tag.itemName} className="mt-4 max-h-[420px] w-full rounded-lg border object-cover" /> : <div className="mt-4 grid h-40 place-items-center rounded-lg border border-dashed text-muted-foreground"><ImageIcon className="size-8" /></div>}</CardContent></Card>
+      <LinkedActionSection action={action} mayManage={mayManage} onCreate={() => setActionOpen(true)} />
+      {(tag.status === "Awaiting Verification" || tag.status === "Closed") && <RedTagVerificationSection tag={tag} action={action} mayManage={mayManage} user={user} />}
     </div><aside className="grid content-start gap-5"><Card><CardContent className="grid justify-items-center p-5"><QrCode value={`/5s/red/${tag.id}`} size={176} /><p className="mt-3 font-mono text-sm font-bold">{tag.tagNumber}</p></CardContent></Card><Card><CardContent className="p-5"><h2 className="font-semibold">Tag History</h2><div className="mt-5 grid gap-0">{tag.history.map((event, i) => <div key={event.id} className="relative grid grid-cols-[18px_1fr] gap-3 pb-5 last:pb-0"><div className="relative"><span className="absolute left-[5px] top-1 size-2.5 rounded-full bg-red-600" />{i < tag.history.length - 1 && <span className="absolute left-[9px] top-4 h-full w-px bg-border" />}</div><div><p className="text-sm font-semibold">{event.label}</p><p className="mt-1 text-xs text-muted-foreground">{displayDate(event.at, true)} · by {event.actor}</p></div></div>)}</div></CardContent></Card></aside></div>
+    <CreateLinkedActionDialog key={tag.id} open={actionOpen} onOpenChange={setActionOpen} context={tag.actionId ? null : actionContext} onCreated={(created) => { linkRedTagAction(tag.id, created.id, user); setActionOpen(false); }} />
   </PageContainer>;
+}
+
+function LinkedActionSection({ action, mayManage, onCreate }: { action?: ReturnType<typeof useActionStore>[number]; mayManage: boolean; onCreate: () => void }) {
+  return <Card><CardContent className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Linked Corrective Action</h2><p className="mt-1 text-xs text-muted-foreground">Corrective execution is managed through the shared Action Center.</p></div>{action && <Badge variant={ACTION_STATUS_CONFIG[action.status].variant}>{action.status}</Badge>}</div>{action ? <div className="mt-4 grid gap-4 sm:grid-cols-3"><Meta label="Action ID" value={action.id} /><Meta label="Owner" value={action.responsiblePersonName || action.assignedTo} /><Meta label="Due" value={getActionDueLabel(action)} /><Button className="w-fit sm:col-span-3" variant="outline" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action.id)}`} />}><ExternalLink className="size-4" />View Action</Button></div> : <div className="mt-4 rounded-lg border border-dashed p-4"><p className="text-sm text-muted-foreground">No canonical Action is linked yet. The Red Tag remains open until corrective work is explicitly assigned.</p>{mayManage && <Button className="mt-3" onClick={onCreate}><Link2 className="size-4" />Create Action</Button>}</div>}</CardContent></Card>;
+}
+
+function RedTagVerificationSection({ tag, action, mayManage, user }: { tag: RedTag; action?: ReturnType<typeof useActionStore>[number]; mayManage: boolean; user: ReturnType<typeof useCurrentUser> }) {
+  const [evidence, setEvidence] = useState<RedTagEvidence[]>([]);
+  const [disposition, setDisposition] = useState<RedTagDisposition | "">(tag.disposition ?? "");
+  const [dispositionNote, setDispositionNote] = useState(tag.dispositionNote ?? "");
+  const [remark, setRemark] = useState(tag.verificationRemark ?? "");
+  const [removalConfirmed, setRemovalConfirmed] = useState(false);
+  const [error, setError] = useState("");
+  const completed = action?.status === "Completed";
+  const verified = Boolean(tag.verifiedAt);
+
+  function verify() {
+    if (!completed) { setError(`Complete Action ${tag.actionId ?? ""} before verifying this Red Tag.`); return; }
+    const availableEvidence = [...(tag.afterEvidence ?? []), ...evidence];
+    if (!availableEvidence.length) { setError("Add after evidence before verification."); return; }
+    if (!disposition) { setError("Select a disposition before verification."); return; }
+    if (disposition === "Other" && !dispositionNote.trim()) { setError("Enter a disposition note for Other."); return; }
+    if (!remark.trim()) { setError("Enter a verification remark."); return; }
+    if (evidence.length) addRedTagAfterEvidence(tag.id, evidence, user);
+    const updated = verifyRedTag(tag.id, action, { disposition, dispositionNote, verificationRemark: remark }, user);
+    if (!updated) { setError("Unable to verify this Red Tag. Confirm the Action is completed and all required fields are present."); return; }
+    setEvidence([]); setError("");
+  }
+
+  function close() {
+    if (!removalConfirmed) { setError("Confirm that the physical tag has been removed before closure."); return; }
+    if (!closeRedTagAfterRemoval(tag.id, action, removalConfirmed, user)) { setError("Verify the Red Tag and complete its Action before confirming removal."); return; }
+    setError("");
+  }
+
+  return <Card><CardContent className="grid gap-5 p-5"><div><h2 className="font-semibold">Verification and Physical Tag Removal</h2><p className="mt-1 text-xs text-muted-foreground">Action completion does not close the Red Tag. Verify the physical condition, confirm disposition, then remove the tag.</p></div>{tag.status === "Closed" ? <div className="grid gap-4 sm:grid-cols-2"><Meta label="Disposition" value={`${tag.disposition}${tag.dispositionNote ? ` · ${tag.dispositionNote}` : ""}`} /><Meta label="Verified by" value={`${tag.verifiedByName} · ${tag.verifiedAt ? displayDate(tag.verifiedAt, true) : ""}`} /><Meta label="Verification remark" value={tag.verificationRemark ?? "—"} /><Meta label="Tag removed by" value={`${tag.removedByName} · ${tag.removedAt ? displayDate(tag.removedAt, true) : ""}`} />{tag.afterEvidence?.map((item) => <Image unoptimized width={320} height={256} key={item.id} src={item.url} alt={item.name} className="max-h-64 rounded-lg border object-cover" />)}</div> : mayManage ? <><div className="grid gap-4 md:grid-cols-2"><AfterEvidencePicker items={evidence} onChange={setEvidence} userName={user.name} /><Field label="Disposition"><Select value={disposition} onValueChange={(value) => setDisposition((value ?? "") as RedTagDisposition | "")}><SelectTrigger><SelectValue placeholder="Select disposition" /></SelectTrigger><SelectContent>{RED_TAG_DISPOSITIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></Field>{disposition === "Other" && <Field label="Disposition note"><Input value={dispositionNote} onChange={(event) => setDispositionNote(event.target.value)} /></Field>}<Field label="Verification remark"><Textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Describe the verified physical condition and disposition." /></Field></div>{tag.afterEvidence?.length ? <div className="flex flex-wrap gap-3">{tag.afterEvidence.map((item) => <Image unoptimized width={96} height={96} key={item.id} src={item.url} alt={item.name} className="size-24 rounded-lg border object-cover" />)}</div> : undefined}{!verified ? <Button className="w-fit" disabled={!completed} onClick={verify}><CheckCircle2 className="size-4" />Verify Condition</Button> : <div className="grid gap-3 border-t pt-4"><p className="text-sm text-muted-foreground">Verified by {tag.verifiedByName} on {tag.verifiedAt ? displayDate(tag.verifiedAt, true) : "—"}. Confirm removal only after the physical tag has been detached.</p><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 size-4" checked={removalConfirmed} onChange={(event) => setRemovalConfirmed(event.target.checked)} /><span>I confirm the physical Red Tag has been removed from the item or location.</span></label><Button className="w-fit" disabled={!removalConfirmed} onClick={close}>Confirm Removal & Close</Button></div>}{!completed && <p className="text-xs text-amber-700 dark:text-amber-400">Complete Action {tag.actionId ?? ""} before verifying this Red Tag.</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</> : <p className="text-sm text-muted-foreground">A user with Red Tag management or Action review permission must verify and close this tag.</p>}</CardContent></Card>;
+}
+
+function AfterEvidencePicker({ items, onChange, userName }: { items: RedTagEvidence[]; onChange: (items: RedTagEvidence[]) => void; userName: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  async function changed(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    const next: RedTagEvidence[] = [];
+    for (const file of files) {
+      const { dataUrl } = await optimizeEvidenceImage(file);
+      next.push({ id: `RTE-${crypto.randomUUID()}`, name: file.name, url: dataUrl, mimeType: file.type, uploadedBy: userName, uploadedAt: new Date().toISOString() });
+    }
+    onChange([...items, ...next]); event.target.value = "";
+  }
+  return <Field label="After evidence"><div><Button type="button" variant="outline" onClick={() => inputRef.current?.click()}><Upload className="size-4" />Add photos</Button><input ref={inputRef} hidden multiple type="file" accept="image/*" onChange={changed} />{items.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{items.length} photo{items.length === 1 ? "" : "s"} ready to save</p>}</div></Field>;
 }
 
 function Meta({ label, value, icon: Icon }: { label: string; value: string; icon?: typeof Flag }) { return <div className="min-w-0">{Icon && <Icon className="mb-2 size-4 text-red-600" />}<p className="break-words text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-semibold [overflow-wrap:anywhere]">{value}</p></div>; }
@@ -173,8 +266,6 @@ function RedTagLabel({ tag }: { tag: RedTag }) {
 }
 function LabelValue({ label, value, wide }: { label: string; value: string; wide?: boolean }) { return <div className={wide ? "col-span-2" : ""}><p className="text-[9px] font-black uppercase tracking-widest text-red-700">{label}</p><p className="mt-0.5 text-xs font-bold leading-4">{value}</p></div>; }
 
-/** Dependency-free deterministic matrix carrying a stable tag URL visual. */
 function QrCode({ value, size }: { value: string; size: number }) {
-  const cells = useMemo(() => { const n = 25; const grid = Array.from({ length: n }, () => Array(n).fill(false)); const finder = (x: number, y: number) => { for (let j=0;j<7;j++) for(let i=0;i<7;i++) grid[y+j][x+i] = i===0||j===0||i===6||j===6||(i>=2&&i<=4&&j>=2&&j<=4); }; finder(0,0); finder(18,0); finder(0,18); let seed=2166136261; for (const c of value) seed=(seed^c.charCodeAt(0))*16777619; for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(!((x<8&&y<8)||(x>16&&y<8)||(x<8&&y>16))) { seed=(seed*1664525+1013904223)>>>0; grid[y][x]=(seed&3)!==0; } return grid; }, [value]);
-  return <svg width={size} height={size} viewBox="0 0 29 29" role="img" aria-label={`QR code for ${value}`} className="bg-white p-1"><rect width="29" height="29" fill="white" />{cells.flatMap((row,y)=>row.map((on,x)=>on?<rect key={`${x}-${y}`} x={x+2} y={y+2} width="1" height="1" fill="black" />:null))}</svg>;
+  return <div className="grid justify-items-center gap-1"><QRCodeSVG value={value} size={size} level="M" marginSize={2} title={`Red Tag ${value}`} /><span className="sr-only">Open Red Tag at {value}</span></div>;
 }

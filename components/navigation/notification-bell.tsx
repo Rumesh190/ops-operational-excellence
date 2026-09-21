@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Bell } from "lucide-react"
 import Link from "next/link"
 
@@ -13,6 +14,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { useCurrentUser } from "@/lib/current-user"
+import { useAdminUsers } from "@/features/five-s/administration/store"
+import { evaluateActionAttention } from "@/lib/actions/action-attention-store"
+import { useActionStore } from "@/lib/actions/action-store"
 import { markNotificationRead, useNotifications } from "@/lib/notifications/notification-store"
 
 /**
@@ -22,8 +26,14 @@ import { markNotificationRead, useNotifications } from "@/lib/notifications/noti
  */
 function NotificationBell() {
   const currentUser = useCurrentUser()
+  const actions = useActionStore()
+  const adminUsers = useAdminUsers()
   const notifications = useNotifications(currentUser.id)
   const unreadCount = notifications.filter((item) => !item.read).length
+
+  useEffect(() => {
+    evaluateActionAttention(actions, adminUsers)
+  }, [actions, adminUsers])
 
   return (
     <Popover>

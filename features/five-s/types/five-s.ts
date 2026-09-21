@@ -5,6 +5,10 @@ export type FiveSCategory =
   | "Standardize"
   | "Sustain";
 
+export type FiveSAuditStage = FiveSCategory | "General";
+export type AuditQuestionSource = "standard" | "custom";
+export type AuditQuestionResponseType = "Compliance" | "Yes / No" | "Text";
+
 export type FiveSAuditStatus =
   | "Draft"
   | "In Progress"
@@ -50,7 +54,7 @@ export interface FiveSEvidence {
 export interface FiveSQuestion {
   id: string;
 
-  category: FiveSCategory;
+  category: FiveSAuditStage;
 
   question: string;
 
@@ -77,6 +81,15 @@ export interface FiveSQuestion {
   actionRequired: boolean;
 
   actionId?: string;
+
+  /** Snapshot metadata. Missing values on legacy audits are treated as standard Compliance questions. */
+  questionSource?: AuditQuestionSource;
+  customQuestionId?: string;
+  responseType?: AuditQuestionResponseType;
+  mandatory?: boolean;
+  requireEvidenceOnNonCompliance?: boolean;
+  textResponse?: string;
+  yesNoResponse?: "Yes" | "No";
 }
 
 /* =========================================================
@@ -84,7 +97,7 @@ export interface FiveSQuestion {
    ========================================================= */
 
 export interface FiveSSection {
-  category: FiveSCategory;
+  category: FiveSAuditStage;
 
   description: string;
 

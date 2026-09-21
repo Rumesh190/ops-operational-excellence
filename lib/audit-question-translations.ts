@@ -1,5 +1,5 @@
 import type { AppLanguage } from "@/lib/ui-preferences"
-import type { FiveSCategory } from "@/features/five-s/types/five-s"
+import type { FiveSAuditStage, FiveSCategory } from "@/features/five-s/types/five-s"
 
 const bn: Record<FiveSCategory, string[]> = {
   Sort: ["কাজের এলাকা থেকে অপ্রয়োজনীয় সরঞ্জাম, উপকরণ ও বস্তু সরানো হয়েছে কি?","অপ্রচলিত বা অব্যবহৃত বস্তু স্পষ্টভাবে চিহ্নিত ও আলাদা করা হয়েছে কি?","কর্মস্থলে কেবল প্রয়োজনীয় উপকরণ রাখা হয়েছে কি?","ক্ষতিগ্রস্ত, ত্রুটিপূর্ণ বা অতিরিক্ত বস্তু চিহ্নিত করে সরানো হয়েছে কি?","অতিরিক্ত কাঁচামাল ও চলমান কাজ প্রয়োজনীয় পরিমাণে নিয়ন্ত্রিত আছে কি?","রেড-ট্যাগযুক্ত বা অবাঞ্ছিত বস্তু নির্ধারিত সময়ে পর্যালোচনা ও অপসারণ করা হয় কি?","কোন বস্তু প্রয়োজনীয় বা অপ্রয়োজনীয় তা নির্ধারণের স্পষ্ট প্রক্রিয়া আছে কি?"],
@@ -47,6 +47,6 @@ const descriptions: Partial<Record<AppLanguage, Record<FiveSCategory, string>>> 
 }
 
 const questions: Partial<Record<AppLanguage, Record<FiveSCategory, string[]>>> = { hi, ta, bn, ja }
-export function auditQuestionText(language: AppLanguage, category: FiveSCategory, index: number, fallback: string) { return questions[language]?.[category]?.[index] ?? fallback }
-export function auditSectionName(language: AppLanguage, category: FiveSCategory) { return sectionNames[language]?.[category] ?? category }
-export function auditSectionDescription(language: AppLanguage, category: FiveSCategory, fallback: string) { return descriptions[language]?.[category] ?? fallback }
+export function auditQuestionText(language: AppLanguage, category: FiveSAuditStage, index: number, fallback: string) { return category === "General" ? fallback : questions[language]?.[category]?.[index] ?? fallback }
+export function auditSectionName(language: AppLanguage, category: FiveSAuditStage) { return category === "General" ? "Custom Questions" : sectionNames[language]?.[category] ?? category }
+export function auditSectionDescription(language: AppLanguage, category: FiveSAuditStage, fallback: string) { return category === "General" ? fallback : descriptions[language]?.[category] ?? fallback }

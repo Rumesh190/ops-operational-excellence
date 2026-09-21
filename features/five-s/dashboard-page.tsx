@@ -48,6 +48,8 @@ import { canAuditZone } from "@/lib/five-s/configuration";
 import type { MyAction, MyActionEvidence, MyActionStatus } from "./types/my-actions";
 import { useI18n } from "@/components/preferences/use-i18n";
 import { MVP_DASHBOARD_DATA } from "./data/mvp-dashboard-data";
+import { useModuleEntitlements } from "@/lib/module-entitlements";
+import { createAuditChecklistSnapshot } from "@/features/settings/custom-audit-questions/checklist";
 
 type DashboardPeriod = "week" | "month" | "year" | "custom";
 type DashboardView = "overview" | "nc-summary" | "before-after";
@@ -237,10 +239,11 @@ function createEmptyFiveSSections(): FiveSSection[] {
    PAGE
    ========================================================= */
 
-export default function FiveSDashboardPage() {
+export function LegacyFiveSDashboardPage() {
   const audits = useFiveSAuditStore();
   const actions = useActionStore();
   const { t } = useI18n();
+  const moduleAccess = useModuleEntitlements();
 
   const [selectedAudit, setSelectedAudit] =
     useState<FiveSAudit | null>(null);
@@ -392,7 +395,7 @@ export default function FiveSDashboardPage() {
   }) {
     const auditorZone = FIVE_S_ZONE_CONFIGURATION.find((zone) => zone.leader === input.auditor)?.name ?? "";
     if (!canAuditZone({ primaryZone: auditorZone }, input.area)) return;
-    const sections = createEmptyFiveSSections();
+    const sections = createAuditChecklistSnapshot(createEmptyFiveSSections());
 
     const audit = createFiveSAudit({
       title: input.title,
@@ -482,15 +485,15 @@ export default function FiveSDashboardPage() {
   return (
     <PageContainer className="max-w-none">
       <FiveSPageHeader
-        eyebrow="5S Workspace"
+        eyebrow="OPS Workspace"
         title={t("dashboard.title")}
-        description={t("dashboard.description")}
-        actions={
+        description="Monitor operational performance, actions, compliance, and improvement activity."
+        actions={moduleAccess.audit ? (
           <Button type="button" onClick={handleStartAudit}>
             <Plus className="size-4" />
             {t("audit.start")}
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-border/80 bg-card p-1 shadow-sm lg:flex-row lg:items-center lg:justify-between">
@@ -569,6 +572,8 @@ export default function FiveSDashboardPage() {
     </PageContainer>
   );
 }
+
+export { default } from "@/features/ops-dashboard/ops-dashboard-page";
 
 function NCSummaryTable({ actions, dashboardZone, onPreview, onOpen, onReport }: { actions: MyAction[]; dashboardZone:string; onPreview: (evidence: MyActionEvidence) => void; onOpen: (action: MyAction) => void; onReport: (action: MyAction) => void }) {
   const zones = useMemo(() => FIVE_S_ZONE_CONFIGURATION.map((zone)=>zone.name), []);

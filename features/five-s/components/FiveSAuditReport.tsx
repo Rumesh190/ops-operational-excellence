@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useActionStore } from "@/lib/actions/action-store";
-import { getFiveSZoneConfiguration } from "@/lib/five-s/configuration";
+import { FIVE_S_ZONE_CONFIGURATION } from "@/lib/five-s/configuration";
 import { useFiveSAuditStore } from "@/lib/five-s/audit-store";
 import { useI18n } from "@/components/preferences/use-i18n";
 import type { FiveSEvidence, FiveSQuestion } from "../types/five-s";
 import type { MyAction } from "../types/my-actions";
+import { isAuditQuestionAnswered } from "@/features/settings/custom-audit-questions/checklist";
 
 const SCORE_LABELS: Record<number, string> = {
   0: "Non Compliance",
@@ -76,7 +77,7 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
   const { locale, t } = useI18n();
   const router = useRouter();
   const reportsOrigin = origin === "reports-audit";
-  const backDestination = reportsOrigin && returnTo?.startsWith("/5s/reports") ? returnTo : "/5s/audits";
+  const backDestination = reportsOrigin && (returnTo?.startsWith("/5s/reports") || returnTo?.startsWith("/reports")) ? returnTo : "/5s/audits";
   const backLabel = reportsOrigin ? t("reports.backAuditReports") : t("reports.backAudits");
   const audits = useFiveSAuditStore();
   const allActions = useActionStore();
@@ -94,7 +95,7 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
   }
 
   const questions = audit.sections.flatMap((section) => section.questions);
-  const completedQuestions = questions.filter((question) => question.score !== null).length;
+  const completedQuestions = questions.filter(isAuditQuestionAnswered).length;
   const actions = allActions.filter((action) =>
     action.auditId === audit.id ||
     action.auditId === audit.title ||
@@ -108,7 +109,8 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
   const scorePercent = percentage(audit.score, audit.maxScore);
   const displayStatus = audit.status === "Completed" ? "Completed" : completedQuestions === questions.length ? "Ready for Completion" : audit.status;
   const generatedAt = formatDateTime(new Date().toISOString(), locale);
-  const zoneLeader = getFiveSZoneConfiguration(audit.area)?.leader;
+  // Completed Audit records predate organization editing, so reports retain the seeded ownership snapshot.
+  const zoneLeader = FIVE_S_ZONE_CONFIGURATION.find((zone) => zone.name === audit.area)?.leader;
   const actionCounts = {
     open: actions.filter((action) => ["Awaiting Assignment", "Assigned", "Open"].includes(action.status)).length,
     inProgress: actions.filter((action) => action.status === "In Progress").length,
@@ -135,9 +137,14 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
         <Button variant="ghost" onClick={() => router.push(backDestination)}>
           <ArrowLeft className="size-4" /> {backLabel}
         </Button>
-        <Button onClick={handlePrint}>
-          <Printer className="size-4" /> {t("reports.savePdf")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {reportsOrigin && <Button variant="outline" onClick={() => router.push(`/audits?audit=${encodeURIComponent(audit.id)}`)}>
+            <FileText className="size-4" /> View Audit
+          </Button>}
+          <Button onClick={handlePrint}>
+            <Printer className="size-4" /> {t("reports.savePdf")}
+          </Button>
+        </div>
       </div>
 
       <article className="audit-report-document mx-auto min-w-0 max-w-[1120px] space-y-5 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:space-y-7 sm:p-8">
@@ -212,7 +219,7 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
               <tbody>{audit.sections.map((section) => {
                 const sectionActions = section.questions.filter((question) => question.actionId).length;
                 const nonCompliances = section.questions.filter((question) => question.score === 0).length;
-                const answered = section.questions.filter((question) => question.score !== null).length;
+                const answered = section.questions.filter(isAuditQuestionAnswered).length;
                 return <tr key={section.category} className="audit-report-block border-b border-slate-200 last:border-0 dark:border-slate-700">
                   <td className="py-3 pr-3 font-semibold">{section.category}</td><td className="px-3 py-3">{answered} / {section.questions.length}</td><td className="px-3 py-3">{section.score} / {section.maxScore}</td><td className="px-3 py-3 font-medium">{percentage(section.score, section.maxScore)}%</td><td className="px-3 py-3">{sectionActions}</td><td className="pl-3 py-3">{nonCompliances}</td>
                 </tr>;
@@ -284,12 +291,13 @@ export default function FiveSAuditReport({ auditId, origin, returnTo }: { auditI
 
 function QuestionFinding({ question, number }: { question: FiveSQuestion; number: number }) {
   const score = question.score;
-  const border = score === 0 ? "border-l-red-500" : score === 1 ? "border-l-amber-500" : "border-l-green-500";
+  const border = score === 0 ? "border-l-red-500" : score === 1 ? "border-l-amber-500" : score === 2 ? "border-l-green-500" : "border-l-slate-300 dark:border-l-slate-600";
+  const response = question.responseType === "Text" ? question.textResponse : question.responseType === "Yes / No" ? question.yesNoResponse : undefined;
   return (
     <article className={`audit-report-block rounded-md border border-l-4 border-slate-200 p-3 dark:border-slate-700 ${border}`}>
-      <div className="flex items-start justify-between gap-3"><p className="text-xs font-medium leading-5"><span className="mr-2 text-muted-foreground">Q{number}</span>{question.question}</p>{score !== null && <Badge variant="outline" className={`shrink-0 ${SCORE_STYLES[score]}`}>{score} — {SCORE_LABELS[score]}</Badge>}</div>
+      <div className="flex items-start justify-between gap-3"><p className="text-xs font-medium leading-5"><span className="mr-2 text-muted-foreground">Q{number}</span>{question.question}{question.questionSource === "custom" && <Badge variant="outline" className="ml-2 text-[9px]">Custom</Badge>}</p>{score !== null ? <Badge variant="outline" className={`shrink-0 ${SCORE_STYLES[score]}`}>{score} — {SCORE_LABELS[score]}</Badge> : response ? <Badge variant="outline" className="shrink-0">{question.responseType === "Text" ? "Answered" : response}</Badge> : null}</div>
       <div className="mt-2 grid gap-2 text-xs sm:grid-cols-[1fr_auto_auto]">
-        <p><span className="text-muted-foreground">Observation:</span> {question.observation || "No observation recorded"}</p>
+        <p><span className="text-muted-foreground">{response ? "Response:" : "Observation:"}</span> {response || question.observation || "No observation recorded"}</p>
         <p><span className="text-muted-foreground">Action:</span> {question.actionId ? "Created" : "None"}</p>
         <p><span className="text-muted-foreground">Evidence:</span> {question.evidence?.length ?? 0}</p>
       </div>

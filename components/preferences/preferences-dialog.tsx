@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, LayoutPanelLeft, PanelTop } from "lucide-react"
+import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -13,7 +13,7 @@ import {
 import {
   useUiPreferences,
 } from "@/components/preferences/ui-preferences-provider"
-import type { AccentColor, NavigationPosition } from "@/lib/ui-preferences"
+import type { AccentColor } from "@/lib/ui-preferences"
 import { LANGUAGE_OPTIONS } from "@/lib/i18n"
 import { useI18n } from "@/components/preferences/use-i18n"
 
@@ -27,7 +27,7 @@ const ACCENTS: Array<{ value: AccentColor; label: string; color: string }> = [
 ]
 
 function PreferencesDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { navigationPosition, accentColor, setNavigationPosition, setAccentColor } = useUiPreferences()
+  const { accentColor, setAccentColor } = useUiPreferences()
   const { language, setLanguage, t } = useI18n()
 
   return (
@@ -35,38 +35,8 @@ function PreferencesDialog({ open, onOpenChange }: { open: boolean; onOpenChange
       <DialogContent className="max-h-[calc(100dvh-1.5rem)] gap-5 sm:max-w-md sm:gap-6">
         <DialogHeader>
           <DialogTitle className="text-lg">Appearance</DialogTitle>
-          <DialogDescription>Personalize how the 5S workspace looks on this device.</DialogDescription>
+          <DialogDescription>Personalize how the OPS workspace looks on this device.</DialogDescription>
         </DialogHeader>
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold">Navigation</legend>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Navigation position">
-            {([
-              ["top", "Top", PanelTop],
-              ["left", "Left", LayoutPanelLeft],
-            ] as const).map(([value, label, Icon]) => {
-              const selected = navigationPosition === value
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setNavigationPosition(value as NavigationPosition)}
-                  className={cn(
-                    "relative flex min-h-20 flex-col items-start justify-between rounded-lg border p-3 text-left transition-[border-color,background-color,box-shadow] duration-200 motion-reduce:transition-none",
-                    "hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    selected ? "border-primary bg-primary/7 shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_18%,transparent)]" : "border-border/80"
-                  )}
-                >
-                  <Icon className={cn("size-5", selected ? "text-primary" : "text-muted-foreground")} />
-                  <span className="text-sm font-medium">{label}</span>
-                  {selected && <Check className="absolute right-2.5 top-2.5 size-4 text-primary" />}
-                </button>
-              )
-            })}
-          </div>
-        </fieldset>
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold">{t("language")}</legend>

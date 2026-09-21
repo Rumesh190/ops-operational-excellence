@@ -20,6 +20,8 @@ import type {
   FiveSSection,
 } from "./types/five-s";
 import { referenceFields } from "@/lib/five-s/reference-guides";
+import { createAuditChecklistSnapshot } from "@/features/settings/custom-audit-questions/checklist";
+import { AuditNav } from "./audit-nav";
 
 /* =========================================================
    5S CHECKLIST
@@ -173,11 +175,11 @@ function getCategoryDescription(
    PAGE
    ========================================================= */
 
-export default function FiveSAuditListPage() {
+export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?: string } = {}) {
   const audits = useFiveSAuditStore();
 
   const [selectedAudit, setSelectedAudit] =
-    useState<FiveSAudit | null>(null);
+    useState<FiveSAudit | null>(() => audits.find((audit) => audit.id === initialAuditId) ?? null);
 
   const [isCreatingAudit, setIsCreatingAudit] =
     useState(false);
@@ -203,8 +205,7 @@ export default function FiveSAuditListPage() {
     auditor: string;
     dueDate: string;
   }) {
-    const sections =
-      createEmptyFiveSSections();
+    const sections = createAuditChecklistSnapshot(createEmptyFiveSSections());
 
     const audit =
       createFiveSAudit({
@@ -312,6 +313,7 @@ export default function FiveSAuditListPage() {
         onStartAudit={handleStartAudit}
         onViewAudit={handleViewAudit}
         onDeleteAudit={handleDeleteAudit}
+        nav={<AuditNav />}
       />
     </PageContainer>
   );

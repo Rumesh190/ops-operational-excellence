@@ -1,34 +1,31 @@
 "use client";
 
-import * as React from "react";
-
 import { Header } from "@/components/navigation/header";
-import { ProductNav } from "@/components/navigation/product-nav";
 import { Sidebar } from "@/components/navigation/sidebar";
+import { useUiPreferences } from "@/components/preferences/ui-preferences-provider";
+import { usePathname } from "next/navigation";
+import { useCurrentUser } from "@/lib/current-user";
 
 /**
- * Standalone 5S application shell: desktop product navigation, compact mobile
- * header, and one consistently aligned content outlet.
+ * OPS dual-tone shell: persistent desktop sidebar, responsive header, and a
+ * consistently aligned light workspace.
  */
 function AppShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
-
-  React.useEffect(() => {
-    document.documentElement.dataset.sidebar = sidebarCollapsed
-      ? "collapsed"
-      : "expanded";
-  }, [sidebarCollapsed]);
+  const { sidebarCollapsed, setSidebarCollapsed } = useUiPreferences();
+  const pathname = usePathname();
+  const currentUser = useCurrentUser();
+  const shellContext = pathname.startsWith("/super-admin") && currentUser.isSuperAdmin ? "super-admin" : "ops";
 
   return (
-    <div className="min-h-screen bg-muted/35 dark:bg-[#15171c]">
-      <ProductNav />
+    <div className="min-h-screen bg-muted/35 dark:bg-background">
       <Sidebar
         collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+        context={shellContext}
+        onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       <div className="app-workspace-shell flex min-h-screen flex-col">

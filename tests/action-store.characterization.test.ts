@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { MyAction } from "@/features/five-s/types/my-actions";
 import {
+  addActionProgressEvidence,
   assignActionToZoneMember,
   closeReviewedAction,
   getActionById,
+  reassignActionOwner,
   sendActionBack,
   setActions,
   startAssignedAction,
   submitActionForReview,
+  updateAction,
 } from "@/lib/actions/action-store";
 
 const leader = { id: "USR-RUMESH", name: "Rumesh" };
@@ -55,10 +58,23 @@ describe("authoritative action-store transitions", () => {
     });
   });
 
+  it("does not allow the generic updater to bypass lifecycle transitions", () => {
+    expect(updateAction("ACT-TEST", { status: "Completed" })).toBeUndefined();
+    expect(getActionById("ACT-TEST")?.status).toBe("Awaiting Assignment");
+    expect(updateAction("ACT-TEST", { title: "Updated safely" })?.title).toBe("Updated safely");
+  });
+
   it("allows the responsible member, but not another actor, to start", () => {
     setActions([action({ status: "Assigned", assignedTo: responsible.name, responsiblePersonId: responsible.id })]);
     expect(startAssignedAction("ACT-TEST", stranger)).toBeUndefined();
     expect(startAssignedAction("ACT-TEST", responsible)?.status).toBe("In Progress");
+  });
+
+  it("stores progress evidence separately and records it in the action timeline", () => {
+    setActions([action({ status: "In Progress", assignedTo: responsible.name, responsiblePersonId: responsible.id })]);
+    const updated = addActionProgressEvidence("ACT-TEST", { id: "EV-PROGRESS", name: "progress.jpg", type: "image", uploadedAt: "2026-09-01", uploadedBy: responsible.name }, responsible);
+    expect(updated?.progressEvidence).toEqual([expect.objectContaining({ id: "EV-PROGRESS", evidenceType: "progress" })]);
+    expect(updated?.activityHistory).toEqual(expect.arrayContaining([expect.objectContaining({ type: "evidence_uploaded" })]));
   });
 
   it("requires responsibility, resolution fields, and evidence before submission", () => {
@@ -96,15 +112,46 @@ describe("authoritative action-store transitions", () => {
       responsiblePersonId: responsible.id,
     })]);
     expect(closeReviewedAction("ACT-TEST", stranger)).toBeUndefined();
-    expect(closeReviewedAction("ACT-TEST", creator)).toMatchObject({
+    expect(closeReviewedAction("ACT-TEST", creator, "Evidence verified")).toMatchObject({
       status: "Completed",
       reviewedBy: creator.name,
+      closedByUserId: creator.id,
+      closedBy: creator.name,
+      closedAt: expect.any(String),
+      closureRemark: "Evidence verified",
+      activityHistory: expect.arrayContaining([
+        expect.objectContaining({ type: "verified" }),
+        expect.objectContaining({ type: "closed" }),
+      ]),
     });
   });
 
-  it("characterizes the store's legacy missing-auditor creator fallback", () => {
+  it("does not allow an arbitrary actor to review a legacy record with no reviewer identity", () => {
     setActions([action({ status: "Pending Review", createdByUserId: undefined, auditor: undefined })]);
-    expect(closeReviewedAction("ACT-TEST", stranger)?.status).toBe("Completed");
-    expect(getActionById("ACT-TEST")?.reviewedBy).toBe(stranger.name);
+    expect(closeReviewedAction("ACT-TEST", stranger)).toBeUndefined();
+    expect(getActionById("ACT-TEST")?.status).toBe("Pending Review");
+  });
+
+  it("prefers an explicit reviewer and preserves an authorized Admin fallback for identity-free legacy records", () => {
+    const explicitReviewer = { id: leader.id, name: leader.name };
+    const creator = { id: "USR-LAKSHMAN", name: "Lakshman" };
+    setActions([action({ status: "Pending Review", reviewerId: leader.id, reviewerName: leader.name })]);
+    expect(closeReviewedAction("ACT-TEST", creator)).toBeUndefined();
+    expect(closeReviewedAction("ACT-TEST", explicitReviewer)?.closedBy).toBe(leader.name);
+
+    const admin = { id: "USR-ADMIN", name: "Admin", roles: ["Admin"], permissions: ["actions.review", "actions.close"] };
+    setActions([action({ status: "Pending Review", reviewerId: undefined, reviewerName: undefined, createdByUserId: undefined, createdByName: undefined, auditor: undefined })]);
+    expect(closeReviewedAction("ACT-TEST", admin)?.closedBy).toBe(admin.name);
+  });
+
+  it("reassigns only through an authorized actor and records the ownership change", () => {
+    setActions([action({ status: "In Progress", assignedTo: responsible.name, responsiblePersonId: responsible.id, responsiblePersonName: responsible.name })]);
+    expect(reassignActionOwner("ACT-TEST", stranger, "USR-SUBURAMIANI", "Shift coverage")).toBeUndefined();
+    expect(reassignActionOwner("ACT-TEST", leader, "USR-SUBURAMIANI", "Shift coverage")).toMatchObject({
+      responsiblePersonId: "USR-SUBURAMIANI",
+      responsiblePersonName: "Suburamiani",
+      reassignmentHistory: [expect.objectContaining({ previousOwnerId: responsible.id, newOwnerId: "USR-SUBURAMIANI", changedByUserId: leader.id, reason: "Shift coverage" })],
+      activityHistory: expect.arrayContaining([expect.objectContaining({ type: "reassigned" })]),
+    });
   });
 });

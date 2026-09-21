@@ -7,12 +7,24 @@ export const RED_TAG_SECTIONS = [
   "Production", "Assembly", "Quality", "Maintenance", "Stores", "Warehouse", "Utilities", "Office", "Other",
 ] as const;
 
-export type RedTagStatus = "Open" | "In Progress" | "Resolved" | "Closed";
+export const RED_TAG_DISPOSITIONS = ["Keep", "Relocate", "Repair", "Return", "Dispose", "Other"] as const;
+
+export type RedTagStatus = "Open" | "In Progress" | "Awaiting Verification" | "Closed";
 export type RedTagReason = (typeof RED_TAG_REASONS)[number];
+export type RedTagDisposition = (typeof RED_TAG_DISPOSITIONS)[number];
+
+export interface RedTagEvidence {
+  id: string;
+  name: string;
+  url: string;
+  mimeType?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
 
 export interface RedTagHistoryEvent {
   id: string;
-  type: "created" | "printed" | "started" | "resolved" | "closed";
+  type: "created" | "printed" | "action_created" | "started" | "awaiting_verification" | "verified" | "removed" | "closed";
   label: string;
   actor: string;
   at: string;
@@ -38,5 +50,19 @@ export interface RedTag {
   createdByName: string;
   createdAt: string;
   imageUrl?: string;
+  actionId?: string;
+  syncedActionStatus?: import("@/features/five-s/types/my-actions").MyActionStatus;
+  disposition?: RedTagDisposition;
+  dispositionNote?: string;
+  verificationRemark?: string;
+  verifiedByUserId?: string;
+  verifiedByName?: string;
+  verifiedAt?: string;
+  removedByUserId?: string;
+  removedByName?: string;
+  removedAt?: string;
+  removalConfirmed?: boolean;
+  afterEvidence?: RedTagEvidence[];
+  closedAt?: string;
   history: RedTagHistoryEvent[];
 }

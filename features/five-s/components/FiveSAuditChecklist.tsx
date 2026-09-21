@@ -51,7 +51,7 @@ import { optimizeEvidenceImage, MAX_EVIDENCE_IMAGES } from "@/lib/evidence-image
 
 import type {
   FiveSAudit,
-  FiveSCategory,
+  FiveSAuditStage,
   FiveSEvidence,
   FiveSQuestion,
   FiveSSection,
@@ -112,12 +112,13 @@ const AUDIT_STAGES: Array<{
    CATEGORIES
    ========================================================= */
 
-const CATEGORY_ORDER: FiveSCategory[] = [
+const CATEGORY_ORDER: FiveSAuditStage[] = [
   "Sort",
   "Set in Order",
   "Shine",
   "Standardize",
   "Sustain",
+  "General",
 ];
 
 /* =========================================================
@@ -493,8 +494,7 @@ function FiveSAuditExecution({
      SCORE
      ======================================================= */
 
-  const totalMaxScore =
-    allQuestions.length * 2;
+  const totalMaxScore = allQuestions.reduce((total, question) => total + question.maxScore, 0);
 
   const totalScore =
     allQuestions.reduce(
@@ -828,14 +828,22 @@ function FiveSAuditExecution({
 
     const action =
       createAction({
+        auditId: audit.id,
+        questionId: question.id,
+        questionText: question.question,
+        sectionId: section.category,
         title,
 
         description,
 
         source: "5S Audit",
-
-        sourceTitle:
-          audit.title,
+        sourceModule: "audit",
+        sourceId: audit.id,
+        sourceTitle: audit.title,
+        sourceLabel: "Audit",
+        sourceLocation: `${audit.plant} · ${audit.area}`,
+        sourceObservationId: question.id,
+        sourceObservation: state.observation.trim() || question.question,
 
         category:
           section.category,

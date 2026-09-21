@@ -4,6 +4,7 @@ type AppLanguage = "en" | "hi" | "ta" | "bn" | "ja"
 
 interface UiPreferences {
   navigationPosition: NavigationPosition
+  sidebarCollapsed: boolean
   accentColor: AccentColor
   language: AppLanguage
 }
@@ -11,7 +12,8 @@ interface UiPreferences {
 const UI_PREFERENCES_STORAGE_KEY = "5s-ui-preferences"
 
 const DEFAULT_UI_PREFERENCES: UiPreferences = {
-  navigationPosition: "top",
+  navigationPosition: "left",
+  sidebarCollapsed: false,
   accentColor: "indigo",
   language: "en",
 }

@@ -1,0 +1,44 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, ExternalLink, Printer } from "lucide-react";
+import { PageContainer } from "@/components/layout/page-container";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAdminUsers } from "@/features/five-s/administration/store";
+import FiveSPageHeader from "@/features/five-s/components/FiveSPageHeader";
+import { useActionStore } from "@/lib/actions/action-store";
+import { useCurrentUser } from "@/lib/current-user";
+import { EscalationStatusBadge, formatVmDate, KpiStatusBadge, MeetingStatusBadge, VisualManagementNav } from "./visual-management-components";
+import { canViewVisualManagementMeeting } from "./visual-management-access";
+import { meetingDurationMinutes, useVisualManagementStore } from "./visual-management-store";
+
+export default function MeetingDetailPage({ meetingId }: { meetingId: string }) {
+  const state = useVisualManagementStore();
+  const allActions = useActionStore();
+  const currentUser = useCurrentUser();
+  const adminUser = useAdminUsers().find((user) => user.id === currentUser.id);
+  const candidate = state.meetings.find((item) => item.id === meetingId);
+  const meeting = candidate && canViewVisualManagementMeeting(candidate, state.boards, currentUser, adminUser?.roles) ? candidate : undefined;
+  if (!meeting) return <Missing />;
+  const board = state.boards.find((item) => item.id === meeting.boardId);
+  const topics = state.topics.filter((item) => meeting.topicIds.includes(item.id));
+  const decisions = state.decisions.filter((item) => meeting.decisionIds.includes(item.id));
+  const escalations = state.escalations.filter((item) => meeting.escalationIds.includes(item.id));
+  const actionMap = new Map(allActions.map((action) => [action.id, action]));
+  const boardName = meeting.boardName ?? board?.name ?? meeting.boardId;
+  return <PageContainer className="max-w-none"><div className="vm-report-toolbar"><FiveSPageHeader eyebrow={`${meeting.tier} Meeting · ${meeting.id}`} title={boardName} description={`${formatVmDate(meeting.startedAt, true)} · Lead: ${meeting.lead.name} · ${meetingDurationMinutes(meeting)} minutes`} leading={<Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/visual-management/meetings" />} aria-label="Back to meetings"><ArrowLeft className="size-4" /></Button>} actions={<div className="flex gap-2">{meeting.status === "In Progress" && <Button variant="outline" nativeButton={false} render={<Link href={`/visual-management/boards/${meeting.boardId}/meeting`} />}><ExternalLink className="size-4" />Resume</Button>}<Button onClick={() => window.print()}><Printer className="size-4" />Print Report</Button></div>} /></div><VisualManagementNav />
+    <article className="vm-meeting-report mx-auto grid max-w-[1180px] gap-4"><header className="rounded-xl border bg-slate-950 p-6 text-white dark:border-slate-700"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-sky-300">OPS · Visual Management Meeting Report</p><div className="mt-3 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold">{boardName}</h1><p className="mt-1 font-mono text-xs text-slate-300">{meeting.id}</p></div><MeetingStatusBadge status={meeting.status} /></div><div className="mt-5 grid gap-3 text-xs text-slate-300 sm:grid-cols-4"><span><strong className="block text-white">Tier</strong>{meeting.tier}</span><span><strong className="block text-white">Plant / Zone</strong>{meeting.plant} / {meeting.zone ?? "All zones"}</span><span><strong className="block text-white">Lead</strong>{meeting.lead.name}</span><span><strong className="block text-white">Duration</strong>{meetingDurationMinutes(meeting)} minutes</span></div></header>
+      <Section title="Attendance"><div className="flex flex-wrap gap-2">{meeting.participants.map((person) => <Badge key={person.id} variant={person.attendance === "Present" ? "success" : "muted"}>{person.name} · {person.attendance}</Badge>)}</div></Section>
+      <Section title="KPI Summary"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{meeting.kpiEntries.map((entry) => <div key={entry.section} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{entry.section}</p><KpiStatusBadge status={entry.status} /></div><p className="mt-3 text-[10px] uppercase text-muted-foreground">Target</p><p className="mt-1 text-xs">{entry.target}</p><p className="mt-2 text-[10px] uppercase text-muted-foreground">Actual</p><p className="mt-1 text-xs font-semibold">{entry.actual}</p>{entry.note && <p className="mt-2 text-xs text-muted-foreground">{entry.note}</p>}</div>)}</div></Section>
+      <Section title="Topics Discussed"><div className="divide-y">{topics.map((topic) => <div key={topic.id} className="py-3 first:pt-0 last:pb-0"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{topic.section}</Badge><p className="text-sm font-semibold">{topic.title}</p>{topic.followUpType && <Badge variant="info">{topic.followUpType}</Badge>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{topic.description}</p>{topic.decision && <p className="mt-2 text-xs"><strong>Decision:</strong> {topic.decision}</p>}</div>)}</div></Section>
+      <div className="grid gap-4 lg:grid-cols-2"><Section title="Decisions"><div className="grid gap-3">{decisions.map((decision) => <div key={decision.id} className="rounded-lg border p-3"><p className="text-sm">{decision.decision}</p><p className="mt-1 text-xs text-muted-foreground">Owner: {decision.owner?.name ?? "Team"}{decision.linkedActionId ? ` · Linked Action ${decision.linkedActionId}` : ""}</p></div>)}{!decisions.length && <p className="text-sm text-muted-foreground">No separate decisions recorded.</p>}</div></Section><Section title="Actions Created"><div className="divide-y">{meeting.actionIds.map((id) => { const action = actionMap.get(id); return <Link href={`/actions/${encodeURIComponent(id)}`} key={id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0 hover:text-primary"><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{action?.title ?? id}</span><span className="mt-1 block text-xs text-muted-foreground">{id}{action ? ` · ${action.responsiblePersonName ?? action.assignedTo}` : ""}</span></span>{action && <Badge variant={action.status === "Completed" ? "success" : action.status === "Overdue" ? "danger" : "warning"}>{action.status}</Badge>}</Link>; })}{!meeting.actionIds.length && <p className="text-sm text-muted-foreground">No Actions created.</p>}</div></Section></div>
+      <Section title="Linked Follow-ups"><div className="grid gap-4 sm:grid-cols-3"><ReferenceList label="Red Flags" ids={meeting.redFlagIds} route="/red-flag" /><ReferenceList label="Continuous Improvement" ids={meeting.continuousImprovementIds} route="/continuous-improvement" /><ReferenceList label="Gemba" ids={meeting.gembaIds} route="/gemba" /></div></Section>
+      <Section title="Escalations"><div className="divide-y">{escalations.map((item) => <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0" key={item.id}><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{item.reason}</span><span className="mt-1 block text-xs text-muted-foreground">Target: {state.boards.find((boardItem) => boardItem.id === item.targetBoardId)?.name}</span></span><EscalationStatusBadge status={item.status} /></div>)}{!escalations.length && <p className="text-sm text-muted-foreground">No escalations raised.</p>}</div></Section>
+    </article></PageContainer>;
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) { return <Card className="gap-0"><CardHeader className="border-b pb-4"><CardTitle className="text-[15px]">{title}</CardTitle></CardHeader><CardContent className="p-4 sm:p-5">{children}</CardContent></Card>; }
+function ReferenceList({ label, ids, route }: { label: string; ids: string[]; route: string }) { return <div className="rounded-lg bg-muted/35 p-3"><p className="text-xs font-semibold">{label} · {ids.length}</p><div className="mt-2 flex flex-wrap gap-2">{ids.map((id) => <Link key={id} href={`${route}/${encodeURIComponent(id)}`} className="font-mono text-[11px] text-primary hover:underline">{id}</Link>)}{!ids.length && <span className="text-[11px] text-muted-foreground">None</span>}</div></div>; }
+function Missing() { return <PageContainer><FiveSPageHeader eyebrow="Visual Management" title="Meeting not found" description="This meeting record is unavailable." /><Button variant="outline" nativeButton={false} render={<Link href="/visual-management/meetings" />}>Back to Meetings</Button></PageContainer>; }

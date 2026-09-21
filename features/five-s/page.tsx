@@ -20,6 +20,7 @@ import type {
   FiveSSection,
 } from "./types/five-s";
 import { referenceFields } from "@/lib/five-s/reference-guides";
+import { createAuditChecklistSnapshot } from "@/features/settings/custom-audit-questions/checklist";
 
 /* =========================================================
    5S CHECKLIST
@@ -207,8 +208,7 @@ export default function FiveSPage() {
     auditor: string;
     dueDate: string;
   }) {
-    const sections =
-      createEmptyFiveSSections();
+    const sections = createAuditChecklistSnapshot(createEmptyFiveSSections());
 
     const audit =
       createFiveSAudit({

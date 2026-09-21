@@ -1,5 +1,5 @@
-export const ADMIN_ROLES = ["Admin","Auditor","Zone Leader","Zone Member","Viewer"] as const;
-export type AdminRole = typeof ADMIN_ROLES[number];
+export const ADMIN_ROLES = ["Admin","Auditor","Zone Leader","Zone Member","Reviewer"] as const;
+export type AdminRole = typeof ADMIN_ROLES[number] | "Viewer";
 export type AdminUserStatus = "Active"|"Inactive";
 
 export const PERMISSION_GROUPS = {

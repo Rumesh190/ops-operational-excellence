@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "5S Management",
+  title: "OPS | Operational Excellence Platform",
   description:
-    "Digital 5S audit, action tracking, reporting, and workplace improvement management.",
+    "Operational audits, action tracking, analytics, and workplace improvement management.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -78,6 +78,36 @@
 }
 
 @media print {
+  body:has(.gemba-print-report) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.gemba-print-report) .gemba-print-report,
+  body:has(.gemba-print-report) .gemba-print-report * {
+    visibility: visible !important;
+  }
+
+  body:has(.gemba-print-report) .gemba-print-report {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: #111827 !important;
+  }
+
+  .gemba-print-observation {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .gemba-report-toolbar {
+    display: none !important;
+  }
+
   body:has(.before-after-print-report) * {
     visibility: hidden !important;
   }
@@ -376,21 +406,21 @@
      Main background is intentionally NOT black.
      ------------------------------------------------------- */
 
-  --background: #15171c;
-  --foreground: oklch(0.94 0.004 260);
+  --background: #171b22;
+  --foreground: #f1f3f6;
 
   /* Cards are slightly lighter than the workspace */
-  --card: oklch(0.225 0.004 260);
-  --card-foreground: oklch(0.94 0.004 260);
+  --card: #21262f;
+  --card-foreground: #f3f5f7;
 
   /* Dropdowns / dialogs / popovers */
-  --popover: oklch(0.245 0.004 260);
-  --popover-foreground: oklch(0.94 0.004 260);
+  --popover: #272d37;
+  --popover-foreground: #f3f5f7;
 
   /* -------------------------------------------------------
      Primary / Brand
      
-     Blue remains the 5S action colour.
+     Blue remains the OPS action colour.
      ------------------------------------------------------- */
 
   --primary: oklch(0.63 0.20 255);
@@ -400,15 +430,15 @@
      Secondary
      ------------------------------------------------------- */
 
-  --secondary: oklch(0.275 0.004 260);
-  --secondary-foreground: oklch(0.91 0.004 260);
+  --secondary: #2b313b;
+  --secondary-foreground: #e8ebef;
 
   /* -------------------------------------------------------
      Muted
      ------------------------------------------------------- */
 
-  --muted: oklch(0.275 0.004 260);
-  --muted-foreground: oklch(0.68 0.006 260);
+  --muted: #282e38;
+  --muted-foreground: #aeb5c0;
 
   /* -------------------------------------------------------
      Accent / Hover
@@ -416,8 +446,8 @@
      Neutral grey rather than blue.
      ------------------------------------------------------- */
 
-  --accent: oklch(0.315 0.004 260);
-  --accent-foreground: oklch(0.95 0.004 260);
+  --accent: #323a46;
+  --accent-foreground: #f4f6f8;
 
   /* -------------------------------------------------------
      Status
@@ -429,8 +459,8 @@
      Borders / controls
      ------------------------------------------------------- */
 
-  --border: oklch(1 0 0 / 11%);
-  --input: oklch(1 0 0 / 14%);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 19%);
   --ring: oklch(0.63 0.20 255);
 
   /* -------------------------------------------------------
@@ -457,17 +487,17 @@
      but still graphite rather than black.
      ------------------------------------------------------- */
 
-  --sidebar: #1c1f26;
-  --sidebar-foreground: oklch(0.90 0.004 260);
+  --sidebar: #0d1522;
+  --sidebar-foreground: #e8edf5;
 
   --sidebar-primary: oklch(0.63 0.20 255);
   --sidebar-primary-foreground: oklch(0.99 0 0);
 
   /* Active navigation */
-  --sidebar-accent: #292d35;
-  --sidebar-accent-foreground: oklch(0.96 0.004 260);
+  --sidebar-accent: #1a2638;
+  --sidebar-accent-foreground: #f6f8fb;
 
-  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.63 0.20 255);
 }
 
@@ -519,40 +549,21 @@ html[data-accent] {
 }
 
 /* =========================================================
-   DESKTOP NAVIGATION PREFERENCE
-   Both navigation trees remain stable through hydration; the saved root
-   attribute selects the visible representation before first paint.
+   OPS DUAL-TONE SHELL
    ========================================================= */
 
 @media (min-width: 64rem) {
-  .app-top-nav {
-    display: block;
-  }
-
   .app-left-nav {
-    display: none;
-  }
-
-  .app-workspace-shell {
-    padding-top: 4rem;
-    transition: padding 220ms cubic-bezier(.2, .8, .2, 1);
-  }
-
-  html[data-navigation="left"] .app-top-nav {
-    display: none;
-  }
-
-  html[data-navigation="left"] .app-left-nav {
     display: flex;
   }
 
-  html[data-navigation="left"] .app-workspace-shell {
-    padding-top: 0;
-    padding-left: 15.5rem;
+  .app-workspace-shell {
+    padding-left: 16rem;
+    transition: padding-left 220ms cubic-bezier(.2, .8, .2, 1);
   }
 
-  html[data-navigation="left"][data-sidebar="collapsed"] .app-workspace-shell {
-    padding-left: 4rem;
+  html[data-sidebar="collapsed"] .app-workspace-shell {
+    padding-left: 4.25rem;
   }
 }
 
@@ -635,6 +646,12 @@ body {
 .motion-success-in, .motion-attachment-in { animation: motion-success-in var(--motion-normal) var(--motion-ease-out) both; }
 .motion-state { transition: opacity var(--motion-normal) var(--motion-ease-smooth), transform var(--motion-normal) var(--motion-ease-smooth), color var(--motion-fast), background-color var(--motion-fast), border-color var(--motion-fast); }
 
+/* Keep the mobile Gemba capture control fixed to the viewport after page entry. */
+.gemba-active-walk { animation-fill-mode: none; }
+
+/* A viewport-fixed submit control must not inherit the page entrance transform. */
+.red-flag-quick-capture { animation: none; transform: none; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
@@ -671,7 +688,7 @@ body {
     margin: 12mm;
   }
 
-  body * {
+  body:has(.audit-report-page) * {
     visibility: hidden !important;
   }
 
@@ -762,6 +779,80 @@ body {
 
   .audit-report-footer {
     margin-top: 12mm;
+  }
+}
+
+/* =========================================================
+   OPS DATA SUMMARY / MODULE REPORT PRINTING
+   ========================================================= */
+
+@media print {
+  body:has(.ops-summary-report) *,
+  body:has(.ops-action-progress-report) *,
+  body:has(.red-flag-print-report) *,
+  body:has(.vi-report-document) *,
+  body:has(.vm-meeting-report) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.ops-summary-report) .ops-summary-report,
+  body:has(.ops-summary-report) .ops-summary-report *,
+  body:has(.ops-action-progress-report) .ops-action-progress-report,
+  body:has(.ops-action-progress-report) .ops-action-progress-report *,
+  body:has(.red-flag-print-report) .red-flag-print-report,
+  body:has(.red-flag-print-report) .red-flag-print-report *,
+  body:has(.vi-report-document) .vi-report-document,
+  body:has(.vi-report-document) .vi-report-document *,
+  body:has(.vm-meeting-report) .vm-meeting-report,
+  body:has(.vm-meeting-report) .vm-meeting-report * {
+    visibility: visible !important;
+  }
+
+  .ops-summary-toolbar,
+  .ops-action-report-toolbar,
+  .vm-report-toolbar {
+    display: none !important;
+  }
+
+  .ops-summary-report,
+  .ops-action-progress-report,
+  .red-flag-print-report,
+  .vi-report-document,
+  .vm-meeting-report {
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ops-summary-block,
+  .ops-action-report-block,
+  .ops-summary-report tr,
+  .red-flag-print-block,
+  .vi-print-block,
+  .vm-meeting-report > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ops-summary-report img,
+  .ops-action-progress-report img,
+  .red-flag-print-report img,
+  .vi-report-document img {
+    max-width: 100% !important;
+    height: auto;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 
@@ -1034,6 +1125,16 @@ body {
   .action-report-document img {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .ops-summary-metadata,
+  .ops-summary-metadata > div {
+    background: white !important;
+    color: #0f172a !important;
+  }
+
+  .ops-summary-metadata > div > p:last-child {
+    color: #0f172a !important;
   }
 }
 

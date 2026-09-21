@@ -9,7 +9,8 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import { SidebarNav } from "@/components/navigation/sidebar-nav";
+import { SidebarNav, SuperAdminSidebarNav } from "@/components/navigation/sidebar-nav";
+import { SidebarFooter } from "@/components/navigation/sidebar-footer";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -18,13 +19,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { NotificationBell } from "@/components/navigation/notification-bell";
-import { UserMenu } from "@/components/navigation/user-menu";
 
 interface SidebarProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  context?: "ops" | "super-admin";
 }
 
 /**
@@ -34,31 +33,32 @@ interface SidebarProps {
 function Sidebar({
   collapsed,
   onToggleCollapsed,
+  context = "ops",
 }: SidebarProps) {
   return (
     <TooltipProvider>
       <aside
         className={cn(
-          "app-left-nav fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[8px_0_28px_-24px_rgb(16_24_40/0.3)] transition-[width] duration-[220ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none lg:flex",
-          collapsed ? "w-16" : "w-[248px]"
+          "ops-sidebar app-left-nav fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-white/[0.08] bg-[#0d1522] text-slate-100 transition-[width] duration-[220ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none lg:flex",
+          collapsed ? "w-[68px]" : "w-64"
         )}
       >
         <div
           className={cn(
-            "flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border px-3",
+            "flex h-16 shrink-0 items-center gap-2 border-b border-white/[0.07] px-3",
             collapsed && "justify-center gap-0.5 px-1"
           )}
         >
           {collapsed ? (
             <>
               <Tooltip>
-                <TooltipTrigger render={<Link href="/5s" className="flex size-8 items-center justify-center rounded-[10px] bg-[var(--brand-accent)] text-[var(--brand-accent-foreground)] shadow-[0_4px_12px_var(--brand-accent-shadow)] ring-1 ring-white/20" aria-label="5S home" />}>
+                <TooltipTrigger render={<Link href="/dashboard" className="flex size-8 items-center justify-center rounded-[10px] bg-[var(--brand-accent)] text-[var(--brand-accent-foreground)] shadow-[0_4px_12px_var(--brand-accent-shadow)] ring-1 ring-white/20" aria-label="OPS home" />}>
                   <ClipboardCheck className="size-[17px]" />
                 </TooltipTrigger>
-                <TooltipContent side="right">5S workspace</TooltipContent>
+                <TooltipContent side="right">OPS workspace</TooltipContent>
               </Tooltip>
               <Tooltip>
-                <TooltipTrigger render={<Button variant="ghost" size="icon-sm" className="size-6 text-[#707682] hover:bg-sidebar-accent dark:text-sidebar-foreground/65" onClick={onToggleCollapsed} aria-label="Expand sidebar" />}>
+                <TooltipTrigger render={<Button variant="ghost" size="icon-sm" className="size-6 text-slate-400 hover:bg-white/[0.07] hover:text-white" onClick={onToggleCollapsed} aria-label="Expand sidebar" />}>
                   <PanelLeftOpen className="size-3.5" />
                 </TooltipTrigger>
                 <TooltipContent side="right">Expand sidebar</TooltipContent>
@@ -66,14 +66,14 @@ function Sidebar({
             </>
           ) : (
             <>
-              <Link href="/5s" className="flex min-w-0 flex-1 items-center gap-2.5">
+              <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2.5">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--brand-accent)] text-[var(--brand-accent-foreground)] shadow-[0_4px_12px_var(--brand-accent-shadow)] ring-1 ring-white/20">
                   <ClipboardCheck className="size-[18px]" />
                 </span>
                 <span className="min-w-0 leading-tight">
-                  <span className="block truncate font-heading text-[15px] font-semibold">5S</span>
-                  <span className="mt-0.5 block truncate text-xs font-medium text-[#707682] dark:text-sidebar-foreground/60">
-                    Operations workspace
+                  <span className="block truncate font-heading text-[15px] font-semibold">OPS</span>
+                  <span className="mt-0.5 block whitespace-nowrap text-[10.5px] font-medium text-slate-400">
+                    {context === "super-admin" ? "Platform Administration" : "Operational Excellence Platform"}
                   </span>
                 </span>
               </Link>
@@ -81,7 +81,7 @@ function Sidebar({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-[#707682] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:text-sidebar-foreground/65"
+                className="shrink-0 text-slate-400 hover:bg-white/[0.07] hover:text-white"
                 onClick={onToggleCollapsed}
                 aria-label="Collapse sidebar"
               >
@@ -92,18 +92,10 @@ function Sidebar({
         </div>
 
         <ScrollArea className="min-h-0 flex-1 py-3">
-          <SidebarNav
-            collapsed={collapsed}
-          />
+          {context === "super-admin" ? <SuperAdminSidebarNav collapsed={collapsed} /> : <SidebarNav collapsed={collapsed} />}
         </ScrollArea>
 
-        <div className={cn("shrink-0 border-t border-sidebar-border p-3", collapsed && "px-2")}>
-          <div className={cn("flex items-center", collapsed ? "flex-col gap-1" : "justify-between gap-1")}>
-            <ThemeToggle />
-            <NotificationBell />
-            <UserMenu />
-          </div>
-        </div>
+        <SidebarFooter collapsed={collapsed} context={context} />
       </aside>
     </TooltipProvider>
   );

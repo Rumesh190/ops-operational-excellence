@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- report evidence and demo profile images can be data/local URLs. */
 
 import {
   ArrowLeft, Building2, Check, CheckCircle2,
@@ -10,39 +11,51 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/preferences/use-i18n";
 import type { MyAction, MyActionActivity, MyActionEvidence } from "./types/my-actions";
+import { getActionSourceDefinition } from "@/lib/actions/action-config";
 
-interface Props { action: MyAction; onBack: () => void; backLabel?: string }
+interface Props { action: MyAction; onBack: () => void; onViewSource?: () => void; backLabel?: string }
 
 const ACTIVITY_LABELS: Record<MyActionActivity["type"], string> = {
   created: "Action created", awaiting_assignment: "Awaiting assignment",
   assigned: "Assigned", started: "Work started", submitted: "Submitted for review",
-  resubmitted: "Resubmitted for review", reviewed: "Reviewed", sent_back: "Sent back for rework", closed: "Approved & closed",
+  evidence_uploaded: "Evidence uploaded",
+  resubmitted: "Resubmitted for review", reviewed: "Reviewed", verified: "Verified", sent_back: "Sent back for rework", closed: "Approved & closed",
+  reminder_generated: "Reminder generated", escalated: "Action escalated", escalation_acknowledged: "Escalation acknowledged", reassigned: "Action reassigned",
 };
 
-export default function FiveSActionReportPage({ action, onBack, backLabel = "Back to Actions" }: Props) {
+// Temporary demo-only avatars. Production user records remain the source of truth when a photo field is introduced.
+const DEMO_PROFILE_PHOTOS: Readonly<Record<string, string>> = {
+  Siva: "/demo-5s/siva.jpeg",
+  "Siva Kumar": "/demo-5s/siva.jpeg",
+  Rumesh: "/demo-5s/rumesh.jpeg",
+  Lakshman: "/demo-5s/balaji.jpeg",
+};
+
+export default function FiveSActionReportPage({ action, onBack, onViewSource, backLabel = "Back to Actions" }: Props) {
   const { t } = useI18n();
   const history = action.activityHistory ?? [];
   const assigned = history.find((event) => event.type === "assigned");
   const started = history.find((event) => event.type === "started");
   const submitted = [...history].reverse().find((event) => event.type === "submitted" || event.type === "resubmitted");
-  const reviewed = [...history].reverse().find((event) => event.type === "reviewed");
+  const reviewed = [...history].reverse().find((event) => event.type === "verified" || event.type === "reviewed");
   const closed = [...history].reverse().find((event) => event.type === "closed");
   const responsible = action.responsiblePersonName ?? action.assignedTo;
-  const approver = action.reviewedBy ?? action.createdByName ?? action.auditor ?? "—";
-  const completedAt = closed?.createdAt ?? action.completedAt;
+  const completedPerson = action.completedByName ?? responsible;
+  const approver = action.closedBy ?? action.reviewedBy ?? action.createdByName ?? action.auditor ?? "—";
+  const completedAt = action.closedAt ?? closed?.createdAt ?? action.completedAt;
   const result = action.resolutionObservation ?? action.actionTakenDescription ?? "No improvement result recorded.";
   const beforeText = action.originalFinding ?? action.description;
   const afterText = result;
   const generatedAt = formatDateTime(new Date().toISOString());
-  const responsiblePhoto = responsible === "Siva" || responsible === "Siva Kumar" ? "/demo-5s/siva.jpeg" : responsible === "Rumesh" ? "/demo-5s/rumesh.jpeg" : undefined;
-  const approverPhoto = approver === "Lakshman" ? "/demo-5s/balaji.jpeg" : undefined;
+  const responsiblePhoto = DEMO_PROFILE_PHOTOS[completedPerson];
+  const approverPhoto = DEMO_PROFILE_PHOTOS[approver];
 
   const timeline = [
     { label: "Assigned", icon: UserRound, tone: "blue", event: assigned, fallbackDate: action.createdAt, fallbackActor: action.createdByName ?? action.auditor },
     { label: "Work Started", icon: Play, tone: "sky", event: started },
     { label: "Submitted for Review", icon: Send, tone: "amber", event: submitted, fallbackDate: action.submittedForReviewAt, fallbackActor: responsible },
-    { label: "Reviewed", icon: ClipboardCheck, tone: "violet", event: reviewed, fallbackDate: action.reviewedAt, fallbackActor: action.reviewedBy ?? action.auditor },
-    { label: "Closed", icon: Check, tone: "green", event: closed, fallbackDate: action.completedAt, fallbackActor: approver },
+    { label: "Verified", icon: ClipboardCheck, tone: "violet", event: reviewed, fallbackDate: action.reviewedAt, fallbackActor: action.reviewedBy ?? action.auditor },
+    { label: "Closed", icon: Check, tone: "green", event: closed, fallbackDate: action.closedAt ?? action.completedAt, fallbackActor: approver },
   ] as const;
 
   async function handlePrint() {
@@ -61,7 +74,7 @@ export default function FiveSActionReportPage({ action, onBack, backLabel = "Bac
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <div className="action-report-controls mx-auto mb-4 flex max-w-[1180px] flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" /> {backLabel}</Button>
-        <Button onClick={handlePrint}><Printer className="size-4" /> {t("reports.savePdf")}</Button>
+        <div className="flex flex-wrap gap-2">{onViewSource && <Button variant="outline" onClick={onViewSource}><FileText className="size-4" />View Action</Button>}<Button onClick={handlePrint}><Printer className="size-4" /> {t("reports.savePdf")}</Button></div>
       </div>
 
       <article className="completed-action-report action-report-document mx-auto max-w-[1180px] overflow-hidden rounded-xl border border-blue-200 bg-white shadow-[0_18px_55px_-42px_rgba(30,64,175,0.45)] dark:border-slate-700 dark:bg-slate-900">
@@ -74,7 +87,7 @@ export default function FiveSActionReportPage({ action, onBack, backLabel = "Bac
             <div className="improvement-comparison grid gap-3 lg:grid-cols-[minmax(0,2fr)_44px_minmax(170px,1fr)_44px_minmax(0,2fr)] lg:items-center">
               <EvidencePanel tone="before" label={t("actionReport.before")} evidence={action.issueEvidence ?? []} description={beforeText} empty="No original evidence captured" />
               <DirectionArrow />
-              <CompletedByPanel name={responsible} department={action.department} zone={action.area} completedAt={completedAt} photo={responsiblePhoto} />
+              <CompletedByPanel name={completedPerson} department={action.department} zone={action.area} completedAt={completedAt} photo={responsiblePhoto} />
               <DirectionArrow />
               <EvidencePanel tone="after" label={t("actionReport.after")} evidence={action.evidence} description={afterText} empty="No completion evidence captured" />
             </div>
@@ -99,9 +112,9 @@ export default function FiveSActionReportPage({ action, onBack, backLabel = "Bac
           </section>
 
           <section className="report-signoff action-report-block grid overflow-hidden rounded-lg border border-blue-100 bg-white lg:grid-cols-[1fr_1fr_2fr] lg:divide-x lg:divide-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:lg:divide-slate-700">
-            <ApprovalPanel title={t("actionReport.preparedBy")} name={responsible} role={`${action.department} • ${action.area}`} date={completedAt} photo={responsiblePhoto} />
-            <ApprovalPanel title={t("actionReport.approvedBy")} name={approver} role={t("audit.auditor")} date={action.reviewedAt ?? completedAt} photo={approverPhoto} />
-            <ReviewHistory history={history} reviewedAt={action.reviewedAt} reviewedBy={action.reviewedBy ?? action.auditor} />
+            <ApprovalPanel title={t("actionReport.preparedBy")} name={completedPerson} role={`${action.department} • ${action.area}`} date={completedAt} photo={responsiblePhoto} />
+            <ApprovalPanel title={t("actionReport.approvedBy")} name={approver} role="Authorized Reviewer" date={action.closedAt ?? action.reviewedAt ?? completedAt} photo={approverPhoto} />
+            <ReviewHistory history={history} reviewedAt={action.reviewedAt} reviewedBy={action.closedBy ?? action.reviewedBy ?? action.auditor} />
           </section>
 
           <footer className="action-report-block flex items-center justify-center gap-3 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 via-sky-50 to-blue-50 px-4 py-3 text-blue-800 dark:border-blue-900/60 dark:from-blue-950/40 dark:via-slate-900 dark:to-blue-950/40 dark:text-blue-200">
@@ -119,13 +132,28 @@ function ReportHeader({ action, generatedAt }: { action: MyAction; generatedAt: 
 }
 
 function ReportMetadata({ action, completedAt }: { action: MyAction; completedAt?: string }) {
+  const source = getActionSourceDefinition(action);
   const primary = [
-    [Building2, "Plant", action.plant], [MapPin, "Zone", action.area], [Warehouse, "Department", action.department], [Sparkles, "5S Section", action.category ?? "—"], [FileText, "Audit ID", action.sourceTitle],
+    [Building2, "Plant", action.plant], [MapPin, "Zone", action.area], [Warehouse, "Department", action.department], [Sparkles, "Category", action.category ?? action.actionCategory ?? "—"], [source.icon, "Source", source.label], [FileText, "Source Record", action.sourceId ?? action.sourceTitle],
   ] as const;
-  const secondary = [
-    ["Priority", action.priority, "text-red-600 dark:text-red-400"], ["Due Date", formatDate(action.dueDate), ""], ["Completed On", formatDate(completedAt), ""], ["Completion", shortPerformance(action.dueDate, completedAt), "text-emerald-700 dark:text-emerald-400"], ["Cost Saving", formatCurrency(action.costSaving), "text-emerald-700 dark:text-emerald-400"], ["Category", action.actionCategory ?? "—", ""], ["Classification", action.improvementClassification ?? "Improvement Case", ""], ["Theme", action.improvementTheme ?? action.title, ""],
-  ] as const;
-  return <section className="report-metadata action-report-block overflow-hidden rounded-lg border border-blue-200 bg-white dark:border-slate-700 dark:bg-slate-900"><div className="metadata-primary grid grid-cols-2 divide-x divide-y divide-blue-100 dark:divide-slate-700 sm:grid-cols-5">{primary.map(([Icon, label, value]) => <div key={label} className="flex min-w-0 items-center gap-2.5 p-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"><Icon className="size-4" /></span><div className="min-w-0"><p className="text-[9px] font-bold tracking-wide text-slate-500">{label}</p><p className="mt-0.5 truncate text-xs font-bold" title={value}>{value}</p></div></div>)}</div><div className="metadata-secondary grid grid-cols-2 divide-x divide-y divide-blue-100 border-t border-blue-200 bg-slate-50/40 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/25 sm:grid-cols-4 lg:grid-cols-8">{secondary.map(([label, value, tone]) => <div key={label} className="min-w-0 p-2.5"><p className="text-[9px] font-medium text-slate-500">{label}</p><p className={`mt-1 text-[11px] font-bold leading-4 ${tone}`} title={value}>{value}</p></div>)}</div></section>;
+  const secondary: Array<readonly [string, string, string]> = [
+    ["Priority", action.priority, "text-red-600 dark:text-red-400"],
+    ["Action Owner", action.responsiblePersonName ?? action.assignedTo ?? "—", ""],
+    ["Zone Leader", action.zoneLeaderName ?? "—", ""],
+    ["Assigned By", action.assignedByName ?? action.createdByName ?? action.auditor ?? "—", ""],
+    ["Created Date", formatDateTime(action.createdAt), ""],
+    ["Due Date", formatDate(action.dueDate), ""],
+    ["Submitted for Review", formatDateTime(action.submittedForReviewAt), ""],
+    ["Verified By", action.reviewedBy ?? action.closedBy ?? "—", ""],
+    ["Closed By", action.closedBy ?? action.reviewedBy ?? action.auditor ?? "—", ""],
+    ["Closed Date", formatDateTime(action.closedAt ?? completedAt), ""],
+    ["Closure Remark", action.closureRemark ?? "—", ""],
+    ["Completed Person", action.completedByName ?? action.responsiblePersonName ?? action.assignedTo ?? "—", ""],
+    ["Completion", shortPerformance(action.dueDate, action.closedAt ?? completedAt), "text-emerald-700 dark:text-emerald-400"],
+    ["Actual Cost Saving", formatCurrency(action.costSaving), "text-emerald-700 dark:text-emerald-400"],
+    ["Action Category", action.actionCategory ?? action.correctiveActionCategory ?? "—", ""],
+  ];
+  return <section className="report-metadata action-report-block overflow-hidden rounded-lg border border-blue-200 bg-white dark:border-slate-700 dark:bg-slate-900"><div className="metadata-primary grid grid-cols-2 divide-x divide-y divide-blue-100 dark:divide-slate-700 sm:grid-cols-3 lg:grid-cols-6">{primary.map(([Icon, label, value]) => <div key={label} className="flex min-w-0 items-center gap-2.5 p-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"><Icon className="size-4" /></span><div className="min-w-0"><p className="text-[9px] font-bold tracking-wide text-slate-500">{label}</p><p className="mt-0.5 truncate text-xs font-bold" title={value}>{value}</p></div></div>)}</div><div className="metadata-secondary grid grid-cols-2 divide-x divide-y divide-blue-100 border-t border-blue-200 bg-slate-50/40 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/25 sm:grid-cols-4">{secondary.map(([label, value, tone]) => <div key={label} className="min-w-0 p-2.5"><p className="text-[9px] font-medium text-slate-500">{label}</p><p className={`mt-1 text-[11px] font-bold leading-4 ${tone}`} title={value}>{value}</p></div>)}</div></section>;
 }
 
 function EvidencePanel({ tone, label, evidence, description, empty }: { tone: "before" | "after"; label: string; evidence: MyActionEvidence[]; description: string; empty: string }) {
@@ -159,7 +187,7 @@ function ApprovalPanel({ title, name, role, date, photo }: { title: string; name
 
 function ReviewHistory({ history, reviewedAt, reviewedBy }: { history: MyActionActivity[]; reviewedAt?: string; reviewedBy?: string }) {
   const events = [...history];
-  const hasReview = !events.some((event) => event.type === "reviewed") && events.some((event) => event.type === "closed") && reviewedAt;
+  const hasReview = !events.some((event) => event.type === "reviewed" || event.type === "verified") && events.some((event) => event.type === "closed") && reviewedAt;
   return <article className="p-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-blue-700 dark:text-blue-400">Review History</p><ol className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2">{events.flatMap((event) => { const rows = [<HistoryRow key={event.id} label={`${ACTIVITY_LABELS[event.type]} by ${event.actorName}`} date={event.createdAt} remark={event.remark} />]; if (event.type === "closed" && hasReview) rows.unshift(<HistoryRow key={`${event.id}-reviewed`} label={`Reviewed by ${reviewedBy ?? event.actorName}`} date={reviewedAt} />); return rows; })}</ol></article>;
 }
 
