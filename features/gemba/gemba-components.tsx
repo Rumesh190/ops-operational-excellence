@@ -88,7 +88,7 @@ export function GembaEvidenceImage({ evidence, className, alt = "" }: { evidence
   return <img src={url} alt={alt} className={className} />;
 }
 
-function GembaEvidenceLightbox({ evidence, onOpenChange }: { evidence: GembaEvidence | null; onOpenChange: (open: boolean) => void }) {
+export function GembaEvidenceLightbox({ evidence, onOpenChange }: { evidence: GembaEvidence | null; onOpenChange: (open: boolean) => void }) {
   const url = useGembaEvidenceUrl(evidence);
   return <OpsEvidenceViewer open={Boolean(evidence)} onOpenChange={onOpenChange} src={url} title={evidence?.name} description={evidence?.note || "Gemba observation evidence"} alt={evidence?.note || evidence?.name} />;
 }

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Footprints, ImagePlus, Lightbulb, MapPin, Mic, Pencil, Plus, ThumbsUp, Users, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Eye, Footprints, ImagePlus, Lightbulb, MapPin, Mic, Pencil, Plus, RefreshCw, ThumbsUp, Trash2, Users, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateLinkedActionDialog, type LinkedActionContext } from "@/features/actions/create-linked-action-dialog";
@@ -21,9 +21,9 @@ import type { MyAction, MyActionEvidence } from "@/features/five-s/types/my-acti
 import { useActionStore } from "@/lib/actions/action-store";
 import { useCurrentUser } from "@/lib/current-user";
 import { MAX_EVIDENCE_IMAGES, optimizeEvidenceImageToBlob } from "@/lib/evidence-images";
-import { deleteGembaPhoto, isGembaPhotoStorageAvailable, saveGembaPhoto } from "@/lib/gemba/gemba-photo-storage";
+import { deleteGembaPhoto, getGembaPhoto, isGembaPhotoStorageAvailable, saveGembaPhoto } from "@/lib/gemba/gemba-photo-storage";
 import { cn } from "@/lib/utils";
-import { CompactEmpty, GembaEvidenceImage, GembaStatusBadge, ObservationCard, OBSERVATION_TYPE_STYLE } from "./gemba-components";
+import { CompactEmpty, GembaEvidenceImage, GembaEvidenceLightbox, GembaStatusBadge, ObservationCard, OBSERVATION_TYPE_STYLE } from "./gemba-components";
 import { canConductGembaWalk, canViewGembaWalk } from "./gemba-access";
 import { completeGembaWalk, linkGembaAction, saveGembaObservation, startGembaWalk, useGembaStore } from "./gemba-store";
 import { isEvidencePhotoRequired, type GembaEvidence, type GembaObservation, type GembaObservationType, type GembaVoiceNote, type GembaWalk } from "./types";
@@ -119,25 +119,41 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
   const [error, setError] = useState("");
   const [evidenceError, setEvidenceError] = useState("");
   const [formNotice, setFormNotice] = useState("");
+  const [previewEvidence, setPreviewEvidence] = useState<GembaEvidence | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const replaceRef = useRef<HTMLInputElement>(null);
+  const replaceTargetRef = useRef<GembaEvidence | null>(null);
   const evidenceRef = useRef<HTMLDivElement>(null);
+  const originalEvidenceIdsRef = useRef(new Set(observation?.evidence.map((item) => item.id) ?? []));
+  const sessionStorageKeysRef = useRef(new Set<string>());
+  const removedOriginalBlobsRef = useRef(new Map<string, Blob>());
+
+  async function storeEvidenceFile(file: File, note?: string): Promise<GembaEvidence> {
+    if (!isGembaPhotoStorageAvailable()) throw new Error("Photo storage is unavailable in this browser. Try a different browser or continue without a photo.");
+    const optimized = await optimizeEvidenceImageToBlob(file);
+    const id = `GEM-EV-${crypto.randomUUID()}`;
+    await saveGembaPhoto(id, optimized.blob);
+    sessionStorageKeysRef.current.add(id);
+    return { id, storageKey: id, name: file.name, url: URL.createObjectURL(optimized.blob), mimeType: optimized.mimeType, size: optimized.size, note, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name };
+  }
 
   async function addEvidence(files: FileList | null) {
     if (!files) return;
     setError(""); setBusy(true);
     try {
-      if (!isGembaPhotoStorageAvailable()) throw new Error("Photo storage is unavailable in this browser. Try a different browser or continue without a photo.");
       const selected = Array.from(files).slice(0, Math.max(0, MAX_EVIDENCE_IMAGES - evidence.length));
       if (!selected.length) throw new Error(`Maximum ${MAX_EVIDENCE_IMAGES} photos allowed.`);
       const next: GembaEvidence[] = [];
-      for (const file of selected) {
-        const optimized = await optimizeEvidenceImageToBlob(file);
-        const id = `GEM-EV-${crypto.randomUUID()}`;
-        // The Blob must be confirmed saved before this photo is treated as attached evidence —
-        // never add a reference to an evidence item whose binary failed to persist.
-        await saveGembaPhoto(id, optimized.blob);
-        next.push({ id, storageKey: id, name: file.name, url: URL.createObjectURL(optimized.blob), mimeType: optimized.mimeType, size: optimized.size, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name });
+      try {
+        for (const file of selected) next.push(await storeEvidenceFile(file));
+      } catch (caught) {
+        await Promise.allSettled(next.map((item) => item.storageKey ? deleteGembaPhoto(item.storageKey) : Promise.resolve()));
+        for (const item of next) {
+          if (item.storageKey) sessionStorageKeysRef.current.delete(item.storageKey);
+          if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+        }
+        throw caught;
       }
       setEvidence((items) => [...items, ...next]);
       setEvidenceError("");
@@ -145,23 +161,58 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
     finally { setBusy(false); }
   }
 
-  function removeEvidence(item: GembaEvidence) {
-    setEvidence((items) => items.filter((candidate) => candidate.id !== item.id));
-    if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
-    if (item.storageKey) void deleteGembaPhoto(item.storageKey).catch((error) => console.error(`[gemba] failed to delete photo ${item.storageKey}`, error));
+  async function deleteEvidenceAsset(item: GembaEvidence) {
+    if (!item.storageKey) return;
+    if (originalEvidenceIdsRef.current.has(item.id)) {
+      const blob = await getGembaPhoto(item.storageKey);
+      if (!blob) throw new Error("The existing photo could not be found. It was left attached.");
+      await deleteGembaPhoto(item.storageKey);
+      removedOriginalBlobsRef.current.set(item.storageKey, blob);
+    } else {
+      await deleteGembaPhoto(item.storageKey);
+      sessionStorageKeysRef.current.delete(item.storageKey);
+    }
   }
 
-  const originalEvidenceIdsRef = useRef(new Set(observation?.evidence.map((item) => item.id) ?? []));
+  async function removeEvidence(item: GembaEvidence) {
+    setError(""); setBusy(true);
+    try {
+      await deleteEvidenceAsset(item);
+      setEvidence((items) => items.filter((candidate) => candidate.id !== item.id));
+      if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to remove this photo. It remains attached."); }
+    finally { setBusy(false); }
+  }
+
+  async function replaceEvidence(item: GembaEvidence, file: File) {
+    setError(""); setBusy(true);
+    let replacement: GembaEvidence | null = null;
+    try {
+      // Confirm the replacement Blob exists before touching the current asset.
+      replacement = await storeEvidenceFile(file, item.note);
+      await deleteEvidenceAsset(item);
+      setEvidence((items) => items.map((candidate) => candidate.id === item.id ? replacement! : candidate));
+      if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+      setEvidenceError("");
+    } catch (caught) {
+      if (replacement?.storageKey) {
+        await deleteGembaPhoto(replacement.storageKey).catch(() => {});
+        sessionStorageKeysRef.current.delete(replacement.storageKey);
+      }
+      if (replacement?.url?.startsWith("blob:")) URL.revokeObjectURL(replacement.url);
+      setError(caught instanceof Error ? caught.message : "Unable to replace this photo. The existing photo remains attached.");
+    } finally { setBusy(false); }
+  }
+
+  function beginReplace(item: GembaEvidence) {
+    replaceTargetRef.current = item;
+    replaceRef.current?.click();
+  }
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
-      // Any photo added during this still-open session that never made it into a saved
-      // observation would otherwise be an orphaned IndexedDB Blob nothing references.
-      for (const item of evidence) {
-        if (!originalEvidenceIdsRef.current.has(item.id) && item.storageKey) {
-          void deleteGembaPhoto(item.storageKey).catch(() => {});
-        }
-      }
+      for (const key of sessionStorageKeysRef.current) void deleteGembaPhoto(key).catch(() => {});
+      for (const [key, blob] of removedOriginalBlobsRef.current) void saveGembaPhoto(key, blob).catch((error) => console.error(`[gemba] failed to restore photo ${key}`, error));
     }
     onOpenChange(nextOpen);
   }
@@ -183,6 +234,8 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
     }
     const saved = saveGembaObservation(walkId, { type, title: title.trim(), description: description.trim() || title.trim(), location: location.trim() || zone, peopleInvolved: people, evidence, voiceNote, noActionReason: type === "Positive" || createAction ? undefined : noActionReason.trim() || undefined }, currentUser, observation?.id);
     if (!saved) { setError("Unable to save this observation locally. Please try again."); return; }
+    sessionStorageKeysRef.current.clear();
+    removedOriginalBlobsRef.current.clear();
     onSaved(saved, createAction && type !== "Positive" && !saved.actionId);
   }
 
@@ -193,7 +246,7 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
       ? { title: "Add Observation", description: "Tell us what you observed" }
       : { title: observation ? "Edit Observation" : "Add Observation", description: "Capture the essential detail now. Everything else is optional." };
 
-  return <Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="flex max-h-[94dvh] w-full flex-col gap-0 overflow-hidden p-4 sm:max-h-[90vh] sm:max-w-[92vw] sm:p-8 lg:max-w-[min(960px,calc(100vw-64px))]">
+  return <><Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="flex max-h-[94dvh] w-full flex-col gap-0 overflow-hidden p-4 sm:max-h-[90vh] sm:max-w-[92vw] sm:p-8 lg:max-w-[min(960px,calc(100vw-64px))]">
     <DialogHeader className="shrink-0 pb-3 sm:pb-4"><DialogTitle>{header.title}</DialogTitle><DialogDescription>{header.description}</DialogDescription></DialogHeader>
 
     <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 sm:-mx-8 sm:px-8">
@@ -258,16 +311,22 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
           </div>
           <input ref={uploadRef} hidden type="file" accept="image/*" multiple onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
           <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
+          <input ref={replaceRef} hidden type="file" accept="image/*" onChange={(event) => { const target = replaceTargetRef.current; const file = event.target.files?.[0]; if (target && file) void replaceEvidence(target, file); replaceTargetRef.current = null; event.target.value = ""; }} />
 
           {evidenceError && <p role="alert" className="mt-3 rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-xs leading-5 text-red-700 dark:text-red-400">{evidenceError}</p>}
 
           {(evidence.length > 0 || voiceNote) && <div className="mt-4 grid gap-3 border-t pt-4">
             {evidence.length > 0 && <div>
               <p className="text-xs font-medium text-muted-foreground">Photo{evidence.length === 1 ? "" : "s"} · {evidence.length} attached</p>
-              <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                 {evidence.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border bg-muted">
-                  <div className="relative aspect-square"><GembaEvidenceImage evidence={item} className="size-full object-cover" /><button type="button" onClick={() => removeEvidence(item)} className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white" aria-label={`Remove ${item.name}`}><X className="size-3.5" /></button></div>
+                  <button type="button" onClick={() => setPreviewEvidence(item)} className="block aspect-[4/3] w-full overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" aria-label={`View ${item.name}`}><GembaEvidenceImage evidence={item} className="size-full object-cover" /></button>
                   <input value={item.note ?? ""} onChange={(event) => setEvidence((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate))} className="h-8 w-full border-0 border-t bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-inset focus:ring-ring" placeholder="Add note" aria-label={`Note for ${item.name}`} />
+                  <div className="grid grid-cols-3 border-t bg-background">
+                    <button type="button" onClick={() => setPreviewEvidence(item)} className="flex min-h-9 items-center justify-center gap-1 text-[11px] font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><Eye className="size-3" />View</button>
+                    <button type="button" onClick={() => beginReplace(item)} disabled={busy} className="flex min-h-9 items-center justify-center gap-1 border-x text-[11px] font-medium hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"><RefreshCw className="size-3" />Replace</button>
+                    <button type="button" onClick={() => void removeEvidence(item)} disabled={busy} className="flex min-h-9 items-center justify-center gap-1 text-[11px] font-medium text-destructive hover:bg-destructive/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"><Trash2 className="size-3" />Remove</button>
+                  </div>
                 </div>)}
               </div>
             </div>}
@@ -295,7 +354,9 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
       <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
       {mode === "form" && <Button onClick={submit} disabled={!title.trim() || busy}>{busy ? "Processing..." : observation ? "Save Changes" : "Save Observation"}</Button>}
     </DialogFooter>}
-  </DialogContent></Dialog>;
+  </DialogContent></Dialog>
+    <GembaEvidenceLightbox evidence={previewEvidence} onOpenChange={(nextOpen) => !nextOpen && setPreviewEvidence(null)} />
+  </>;
 }
 
 function EvidenceActionCard({ icon: Icon, label, description, onClick, disabled }: { icon: LucideIcon; label: string; description: string; onClick: () => void; disabled?: boolean }) {
