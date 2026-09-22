@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MyAction, MyActionEvidence, MyActionPriority } from "@/features/five-s/types/my-actions";
-import { createAction } from "@/lib/actions/action-store";
+import { createAction, rollbackCreatedAction } from "@/lib/actions/action-store";
 import { useCurrentUser } from "@/lib/current-user";
 import { getFiveSZoneConfiguration } from "@/lib/five-s/configuration";
 import { useActiveActionCategories } from "@/lib/actions/action-category-store";
@@ -29,6 +29,7 @@ export interface LinkedActionContext {
   location: string;
   evidence: MyActionEvidence[];
   defaultPriority?: MyActionPriority;
+  hidePriority?: boolean;
   defaultResponsibleId?: string;
   defaultDueDate?: string;
 }
@@ -37,7 +38,7 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
   open: boolean;
   onOpenChange: (open: boolean) => void;
   context: LinkedActionContext | null;
-  onCreated: (action: MyAction) => void;
+  onCreated: (action: MyAction) => unknown;
 }) {
   const currentUser = useCurrentUser();
   const actionCategories = useActiveActionCategories();
@@ -46,16 +47,20 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
   const [category, setCategory] = useState("");
   const [responsibleId, setResponsibleId] = useState(context?.defaultResponsibleId ?? "");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const zone = context ? getFiveSZoneConfiguration(context.zone) : undefined;
-  const effectivePriority = actionPriorities.some((item) => item.id === priority) ? priority : actionPriorities[0]?.id ?? priority;
+  const effectivePriority = context?.hidePriority
+    ? context.defaultPriority ?? "Low"
+    : actionPriorities.some((item) => item.id === priority) ? priority : actionPriorities[0]?.id ?? priority;
   const dueDate = context?.defaultDueDate ?? getPriorityDueDate(effectivePriority);
 
   function submit() {
     if (!context || !zone || !category || !responsibleId || busy) return;
     const responsible = zone.members.find((member) => member.id === responsibleId);
     if (!responsible) return;
-    setBusy(true);
-    const action = createAction({
+    setBusy(true); setError("");
+    try {
+      const action = createAction({
       title: context.title,
       description: context.description,
       source: context.source,
@@ -87,10 +92,17 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
       dueDate,
       actionCategory: category,
       issueEvidence: context.evidence,
-    });
-    onOpenChange(false);
-    setBusy(false);
-    onCreated(action);
+      });
+      if (onCreated(action) === false) {
+        const rolledBack = rollbackCreatedAction(action.id);
+        throw new Error(rolledBack
+          ? "The Action could not be linked to its source record, so it was not retained. Please try again."
+          : "The Action was created, but its source link failed. Refresh the source record before trying again.");
+      }
+      onOpenChange(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to create this Action. Please try again.");
+    } finally { setBusy(false); }
   }
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
@@ -109,13 +121,14 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
             <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Link2 className="size-3.5" />{context.zone} · {context.location} · {context.evidence.length} evidence photo{context.evidence.length === 1 ? "" : "s"}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Priority *"><Select value={effectivePriority} onValueChange={(value) => setPriority((value ?? actionPriorities[0]?.id ?? "Medium") as MyActionPriority)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{actionPriorities.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
+            {!context.hidePriority && <Field label="Priority *"><Select value={effectivePriority} onValueChange={(value) => setPriority((value ?? actionPriorities[0]?.id ?? "Medium") as MyActionPriority)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{actionPriorities.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>}
             <Field label="Due Date" derived><Input type="date" value={dueDate} disabled /></Field>
             <Field label="Action Category *"><Select value={category} onValueChange={(value) => setCategory(value ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{actionCategories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></Field>
             <Field label="Action Owner *"><Select value={responsibleId} onValueChange={(value) => setResponsibleId(value ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select zone member" /></SelectTrigger><SelectContent>{zone?.members.map((member) => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select></Field>
             <Field label="Zone Leader" derived><Input value={zone?.leader ?? "—"} disabled /></Field>
             <Field label="Assigned By" derived><Input value={currentUser.name} disabled /></Field>
           </div>
+          {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
         </div>
       </div>}
       <DialogFooter className="shrink-0 sm:-mx-8 sm:-mb-8 sm:p-8"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!context || !category || !responsibleId || busy} onClick={submit}>{busy ? "Creating..." : "Create Action"}</Button></DialogFooter>

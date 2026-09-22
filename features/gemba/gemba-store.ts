@@ -355,12 +355,15 @@ export function saveGembaObservation(walkId: string, input: SaveObservationInput
 
 export function linkGembaAction(walkId: string, observationId: string, actionId: string, actor: GembaActor) {
   load();
+  const walk = state.walks.find((item) => item.id === walkId);
+  const observation = state.observations.find((item) => item.id === observationId && item.gembaId === walkId);
+  if (!walk || !observation || observation.actionId) return false;
   const now = new Date().toISOString();
-  const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, actionId, updatedAt: now } : item);
-  const walks = state.walks.map((walk) => walk.id === walkId ? {
-    ...walk, updatedAt: now, actionIds: walk.actionIds.includes(actionId) ? walk.actionIds : [...walk.actionIds, actionId],
-    activity: [...walk.activity, event("action_created", `Action ${actionId} created`, actor, { observationId, actionId })],
-  } : walk);
+  const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, actionId, noActionReason: undefined, updatedAt: now } : item);
+  const walks = state.walks.map((item) => item.id === walkId ? {
+    ...item, updatedAt: now, actionIds: item.actionIds.includes(actionId) ? item.actionIds : [...item.actionIds, actionId],
+    activity: [...item.activity, event("action_created", `Action ${actionId} created`, actor, { observationId, actionId })],
+  } : item);
   return persist({ walks, observations });
 }
 

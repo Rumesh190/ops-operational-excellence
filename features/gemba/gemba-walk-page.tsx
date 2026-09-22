@@ -64,13 +64,16 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
   function openNew() { setEditing(null); setCaptureOpen(true); }
   function openEdit(observation: GembaObservation) { setEditing(observation); setCaptureOpen(true); }
   function openAction(observation: GembaObservation) {
+    if (observation.actionId) return;
     setLinkedContext(toLinkedContext(walk!, observation));
     setActionOpen(true);
   }
   function actionCreated(action: MyAction) {
-    if (!linkedContext?.sourceObservationId) return;
-    linkGembaAction(walk!.id, linkedContext.sourceObservationId, action.id, currentUser);
+    if (!linkedContext?.sourceObservationId) return false;
+    const linked = linkGembaAction(walk!.id, linkedContext.sourceObservationId, action.id, currentUser);
+    if (!linked) return false;
     setNotice(`${action.id} created and linked to ${linkedContext.sourceObservationId}.`);
+    return true;
   }
   function confirmComplete() {
     completeGembaWalk(walk!.id, currentUser);
@@ -232,7 +235,7 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
       evidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    const saved = saveGembaObservation(walkId, { type, title: title.trim(), description: description.trim() || title.trim(), location: location.trim() || zone, peopleInvolved: people, evidence, voiceNote, noActionReason: type === "Positive" || createAction ? undefined : noActionReason.trim() || undefined }, currentUser, observation?.id);
+    const saved = saveGembaObservation(walkId, { type, title: title.trim(), description: description.trim() || title.trim(), location: location.trim() || zone, peopleInvolved: people, evidence, voiceNote, noActionReason: type === "Positive" || createAction || Boolean(observation?.actionId) ? undefined : noActionReason.trim() || undefined }, currentUser, observation?.id);
     if (!saved) { setError("Unable to save this observation locally. Please try again."); return; }
     sessionStorageKeysRef.current.clear();
     removedOriginalBlobsRef.current.clear();
@@ -342,7 +345,7 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
           <Field label="Description"><Textarea className="min-h-24" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add context the team will need later..." /></Field>
           <div className="grid gap-4 lg:grid-cols-2">
             <Field label="Area / Location"><Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder={`${zone} area or workstation`} /></Field>
-            {type !== "Positive" && !createAction && <Field label="Why no Action? (optional)"><Input value={noActionReason} onChange={(event) => setNoActionReason(event.target.value)} placeholder="e.g. Corrected immediately during the walk" /></Field>}
+            {type !== "Positive" && !createAction && !observation?.actionId && <Field label="Why no Action? (optional)"><Input value={noActionReason} onChange={(event) => setNoActionReason(event.target.value)} placeholder="e.g. Corrected immediately during the walk" /></Field>}
           </div>
           {participants.length > 0 && <Field label="People Involved"><div className="grid gap-1 rounded-lg border p-2 sm:grid-cols-2 lg:grid-cols-3">{participants.map((name) => <label key={name} className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm hover:bg-muted/40"><Checkbox checked={people.includes(name)} onCheckedChange={(checked) => setPeople((current) => checked === true ? [...current, name] : current.filter((item) => item !== name))} />{name}</label>)}</div></Field>}
         </div>}
@@ -381,8 +384,8 @@ function VoiceNoteAttachment({ voiceNote, onRemove }: { voiceNote: GembaVoiceNot
 }
 
 function toLinkedContext(walk: GembaWalk, observation: GembaObservation): LinkedActionContext {
-  const evidence: MyActionEvidence[] = observation.evidence.map((item) => ({ id: item.id, evidenceType: "finding", name: item.name, type: "image", mimeType: item.mimeType, uploadedAt: item.uploadedAt, uploadedBy: item.uploadedBy, url: item.url }));
-  return { source: "Gemba", sourceModule: "gemba", sourceId: walk.id, sourceObservationId: observation.id, sourceObservation: observation.title, title: observation.type === "Issue" ? `Resolve: ${observation.title}` : `Improve: ${observation.title}`, description: observation.description, plant: walk.plant, zone: walk.zone, location: observation.location, evidence };
+  const evidence: MyActionEvidence[] = observation.evidence.map((item) => ({ id: item.id, evidenceType: "finding", name: item.name, type: "image", mimeType: item.mimeType, uploadedAt: item.uploadedAt, uploadedBy: item.uploadedBy, url: item.url?.startsWith("blob:") || item.url?.startsWith("data:") ? undefined : item.url }));
+  return { source: "Gemba", sourceModule: "gemba", sourceId: walk.id, sourceObservationId: observation.id, sourceObservation: observation.title, title: observation.type === "Issue" ? `Resolve: ${observation.title}` : `Improve: ${observation.title}`, description: observation.description, plant: walk.plant, zone: walk.zone, location: observation.location, evidence, defaultPriority: observation.type === "Opportunity" ? "Low" : undefined, hidePriority: observation.type === "Opportunity" };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid min-w-0 gap-1.5 text-sm font-medium">{label}{children}</label>; }

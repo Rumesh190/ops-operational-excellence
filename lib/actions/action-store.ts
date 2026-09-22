@@ -235,12 +235,18 @@ export function createAction(
     ],
   });
 
+  const previousActions = actions;
   actions = [
     action,
     ...actions,
   ];
 
-  emitChange();
+  const result = saveToStorage();
+  if (!result?.success) {
+    actions = previousActions;
+    throw new Error(result?.message ?? "Unable to save this Action. Please try again.");
+  }
+  listeners.forEach((listener) => listener());
 
   if (action.status === "Awaiting Assignment" && action.zoneLeaderId) {
     createNotification({ recipientUserId: action.zoneLeaderId, title: "New Action Requires Assignment", message: `${action.title} · Raised by: ${action.createdByName ?? action.auditor ?? "Auditor"} · Source: ${getActionSourceDefinition(action).label} ${action.sourceId ?? action.sourceTitle} · Zone: ${action.area} · Priority: ${action.priority}`, href: `/5s/actions/${encodeURIComponent(action.id)}` });
@@ -254,6 +260,19 @@ export function createAction(
   }
 
   return action;
+}
+
+/** Removes only a just-created Action when its source-link transaction fails. */
+export function rollbackCreatedAction(actionId: string): boolean {
+  loadFromStorage();
+  const action = actions.find((item) => item.id === actionId);
+  if (!action || (action.activityHistory?.length ?? 0) > 1 || action.activityHistory?.[0]?.type !== "created") return false;
+  const previousActions = actions;
+  actions = actions.filter((item) => item.id !== actionId);
+  const result = saveToStorage();
+  if (!result?.success) { actions = previousActions; return false; }
+  listeners.forEach((listener) => listener());
+  return true;
 }
 
 export function assignActionToZoneMember(actionId: string, actor: ActionActor, memberId: string) {
