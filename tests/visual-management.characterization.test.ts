@@ -11,7 +11,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("Visual Management module migration", () => {
   it("registers only the new product module in the operational excellence order", () => {
-    expect(OPERATIONAL_MODULES.map((module) => module.id)).toEqual(["gemba", "redFlag", "continuousImprovement", "audit", "visualManagement"]);
+    expect(OPERATIONAL_MODULES.map((module) => module.id)).toEqual(["gemba", "redFlag", "redTag", "continuousImprovement", "audit", "visualManagement"]);
     expect(OPERATIONAL_MODULES.find((module) => module.id === "visualManagement")).toMatchObject({ label: "Visual Management", route: "/visual-management", enabled: true, group: "operations" });
     expect(OPERATIONAL_MODULES.some((module) => (module.id as string) === "visualImprovement")).toBe(false);
     expect(DEFAULT_MODULE_ENTITLEMENTS.visualManagement).toBe(true);
@@ -45,12 +45,12 @@ describe("Visual Management module migration", () => {
     const groups = getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS });
     expect(groups.map((group) => group.id)).toEqual(["operationalExcellence", "execution", "visualize", "analytics"]);
     expect(groups.flatMap((group) => group.items.map((item) => item.id))).toEqual([
-      "gemba", "redFlag", "continuousImprovement", "audit", "actions", "visualManagement", "reports",
+      "gemba", "redFlag", "redTag", "continuousImprovement", "audit", "actions", "visualManagement", "reports",
     ]);
 
     expect(getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS, gemba: false }).find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).not.toContain("gemba");
     const withoutIdentifyAndImprove = getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS, redFlag: false, continuousImprovement: false });
-    expect(withoutIdentifyAndImprove.find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).toEqual(["gemba", "audit"]);
+    expect(withoutIdentifyAndImprove.find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).toEqual(["gemba", "redTag", "audit"]);
 
     const auditOnly = Object.fromEntries(
       Object.keys(DEFAULT_MODULE_ENTITLEMENTS).map((id) => [id, ["audit", "actions", "dashboards", "reports"].includes(id)]),

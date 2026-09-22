@@ -16,7 +16,7 @@ import { DEMO_ORGANIZATION, ORGANIZATIONS, saveOrganizationAccess, type Organiza
 import { SettingsAccessDenied, useSettingsAccess } from "./settings-access";
 
 const SECTIONS = [
-  { title: "Operational Excellence", ids: ["gemba", "redFlag", "continuousImprovement", "audit"] },
+  { title: "Operational Excellence", ids: ["gemba", "redFlag", "redTag", "continuousImprovement", "audit"] },
   { title: "Execution", ids: ["actions"] },
   { title: "Visualize", ids: ["visualManagement"] },
   { title: "Analytics", ids: ["reports"] },

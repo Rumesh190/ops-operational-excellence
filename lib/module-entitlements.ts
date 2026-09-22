@@ -30,6 +30,7 @@ const STORAGE_KEY = "ops-organization-modules-v1";
 const XYZ_DEFAULTS: OrganizationAccess = {
   ...DEFAULT_MODULE_ENTITLEMENTS,
   redFlag: false,
+  redTag: false,
   visualImprovement: false,
   visualManagement: false,
   gemba: false,

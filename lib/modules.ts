@@ -6,6 +6,7 @@ import {
   Flag,
   Footprints,
   ListTodo,
+  Tag,
   TrendingUp,
 } from "lucide-react";
 
@@ -13,6 +14,7 @@ export type OperationalModuleId =
   | "audit"
   | "continuousImprovement"
   | "redFlag"
+  | "redTag"
   | "visualManagement"
   | "gemba";
 
@@ -20,7 +22,7 @@ export type SharedCapabilityId = "actions" | "dashboards" | "reports";
 export type LegacyModuleId = "visualImprovement";
 export type AccessCapabilityId = OperationalModuleId | SharedCapabilityId | LegacyModuleId;
 export type NavigationGroupId = "overview" | "operationalExcellence" | "execution" | "visualize" | "analytics" | "system";
-export type ConceptStage = "observe" | "identify" | "improve" | "sustain" | "execute" | "visualize" | "analyze";
+export type ConceptStage = "observe" | "identify" | "dispose" | "improve" | "sustain" | "execute" | "visualize" | "analyze";
 
 interface NavigationMetadata {
   navigationGroup: Exclude<NavigationGroupId, "overview" | "system">;
@@ -77,6 +79,19 @@ export const OPERATIONAL_MODULES: readonly OperationalModule[] = [
     conceptStage: "identify",
     stageLabel: "Identify",
     order: 20,
+  },
+  {
+    id: "redTag",
+    label: "Red Tag",
+    route: "/5s/red",
+    description: "Evaluate and disposition physical workplace items.",
+    icon: Tag,
+    enabled: true,
+    group: "operations",
+    navigationGroup: "operationalExcellence",
+    conceptStage: "dispose",
+    stageLabel: "Item Disposition",
+    order: 25,
   },
   {
     id: "continuousImprovement",
