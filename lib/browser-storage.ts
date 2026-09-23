@@ -29,3 +29,27 @@ export function getApproximateStorageUsage() {
   const keys = Object.keys(window.localStorage).map((key) => ({ key, bytes: new Blob([key, window.localStorage.getItem(key) ?? ""]).size })).sort((a, b) => b.bytes - a.bytes);
   return { totalBytes: keys.reduce((sum, item) => sum + item.bytes, 0), keys };
 }
+
+/**
+ * Get a storage key with optional prefix
+ */
+export function getStorageKey(key: string, prefix?: string): string {
+  return prefix ? `${prefix}_${key}` : key;
+}
+
+/**
+ * Load typed data from localStorage
+ */
+export function loadFromStorage<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (!stored) return null;
+    
+    return JSON.parse(stored) as T;
+  } catch (error) {
+    console.error(`Failed to load ${key}:`, error);
+    return null;
+  }
+}
