@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarDays, Camera, Check, CheckCircle2, Circle, ExternalLink, Eye, Flag, Image as ImageIcon, Link2, LockKeyhole, Package, Plus, Printer, QrCode as QrCodeIcon, Search, Trash2, Upload, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, Camera, Check, CheckCircle2, Circle, ExternalLink, Eye, Flag, Footprints, Image as ImageIcon, Link2, LockKeyhole, Package, Plus, Printer, QrCode as QrCodeIcon, Search, Trash2, Upload, UserRound } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { PageContainer } from "@/components/layout/page-container";
@@ -28,6 +28,7 @@ import { addRedTagAfterEvidence, closeRedTag, closeRedTagAfterRemoval, completeR
 import { getRedTagLifecycleStageIndex, RED_TAG_CATEGORIES, RED_TAG_DECISION_LABELS, RED_TAG_DECISIONS, RED_TAG_DISPOSITIONS, RED_TAG_LIFECYCLE_STAGES, RED_TAG_REASONS, RED_TAG_SECTIONS, type RedTag, type RedTagCategory, type RedTagDecision, type RedTagDisposition, type RedTagEvidence, type RedTagReason, type RedTagStatus } from "./types";
 import { useI18n } from "@/components/preferences/use-i18n";
 import { optimizeEvidenceImage } from "@/lib/evidence-images";
+import { getIncomingRelationships } from "@/lib/relationships/relationship-store";
 import { canCreateRedTag } from "./access";
 import { RedTagNav } from "./red-tag-nav";
 import { getRedTagQrTarget, getRedTagRecordPath } from "./qr";
@@ -176,6 +177,24 @@ export function RedTagDetailPage({ tagId }: { tagId: string }) {
   const [actionOpen, setActionOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const qrTarget = useRedTagQrTarget(tagId);
+  
+  // Query Phase 4 relationships to find Gemba source
+  const gembaSource = useMemo(() => {
+    if (!tag) return null;
+    const incoming = getIncomingRelationships({
+      module: "redTag",
+      recordId: tag.id,
+    });
+    const gembaRel = incoming.find((rel) => 
+      rel.from.module === "gemba" && rel.relationshipType === "red-tag"
+    );
+    return gembaRel ? {
+      walkId: gembaRel.from.recordId,
+      observationId: gembaRel.from.childId,
+      title: gembaRel.metadata?.title as string | undefined,
+    } : null;
+  }, [tag]);
+  
   useEffect(() => { reconcileRedTagActions(actions); }, [actions]);
   if (!tag) return <Missing onBack={() => router.push("/5s/red")} />;
   const actionContext: LinkedActionContext = {
@@ -191,6 +210,7 @@ export function RedTagDetailPage({ tagId }: { tagId: string }) {
     <RedTagLifecycleIndicator status={tag.status} />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,.7fr)]"><div className="grid gap-5">
       <Card><CardContent className="grid gap-5 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Item Details</h2><Badge variant={STATUS_TONE[tag.status]}>{tag.status}</Badge></div><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4"><Meta icon={Package} label="Item / Equipment" value={tag.itemName} /><Meta label="Red Tag ID" value={tag.tagNumber} /><Meta label="Quantity" value={String(tag.quantity)} /><Meta label="Category" value={tag.category ?? "Not recorded"} /><Meta label="Location" value={`${tag.plant} · ${tag.zone} · ${tag.section}`} /><Meta label="Department" value={tag.department ?? "Not recorded"} /><Meta label="Reason" value={tag.reason === "Others" ? tag.customReason ?? tag.reason : tag.reason} />{tag.estimatedValue !== undefined && <Meta label="Estimated Value" value={new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(tag.estimatedValue)} />}<Meta icon={CalendarDays} label="Identified Date" value={displayDate(tag.createdAt, true)} /><Meta icon={UserRound} label="Identified By" value={tag.createdByName} /></div><div className="border-t pt-4"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Item Description</p><p className="mt-2 text-sm leading-6">{tag.remarks || "No description added."}</p></div></CardContent></Card>
+      {gembaSource && <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Footprints className="size-5 text-primary" /><h2 className="font-semibold">Source: Gemba Observation</h2></div><p className="mt-2 text-sm text-muted-foreground">This Red Tag was created from a Gemba walk observation.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Meta label="Gemba Walk" value={gembaSource.walkId} /><Meta label="Observation" value={gembaSource.observationId ?? "Not recorded"} />{gembaSource.title && <Meta label="Observation Title" value={gembaSource.title} />}</div><Button className="mt-4" variant="outline" size="sm" nativeButton={false} render={<Link href={`/gemba/${gembaSource.walkId}`} />}><ExternalLink className="size-3.5" />View Gemba Walk</Button></CardContent></Card>}
       <Card><CardContent className="p-5"><h2 className="font-semibold">Original Item Photo</h2>{tag.imageUrl ? <img src={tag.imageUrl} alt={tag.itemName} className="mt-4 max-h-[520px] w-full rounded-lg border object-contain" /> : <div className="mt-4 grid h-40 place-items-center rounded-lg border border-dashed text-muted-foreground"><ImageIcon className="size-8" /></div>}</CardContent></Card>
       <RedTagReviewDecisionSection tag={tag} mayManage={mayManage} user={user} />
       <RedTagDispositionSection tag={tag} action={action} mayManage={mayManage} user={user} users={adminUsers} />

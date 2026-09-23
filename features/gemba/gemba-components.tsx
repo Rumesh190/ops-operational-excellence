@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Camera, Eye, FileCheck2, ImageIcon, MapPin, Mic, Pencil, Plus } from "lucide-react";
+import { Camera, Eye, FileCheck2, ImageIcon, MapPin, Mic, Pencil, Plus, Tag } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { OpsEmptyState } from "@/components/ops/ops-empty-state";
@@ -47,16 +47,22 @@ export function GembaTabBar({ tabs, active, onChange, label = "Gemba views" }: {
   return <OpsTabBar tabs={tabs} active={active} onChange={onChange} label={label} />;
 }
 
-export function ObservationCard({ observation, action, onEdit, onCreateAction, compact = false }: {
+export function ObservationCard({ observation, action, onEdit, onCreateAction, onCreateRedTag, compact = false }: {
   observation: GembaObservation;
   action?: MyAction;
   onEdit?: () => void;
   onCreateAction?: () => void;
+  onCreateRedTag?: () => void;
   compact?: boolean;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [preview, setPreview] = useState<GembaObservation["evidence"][number] | null>(null);
   const style = OBSERVATION_TYPE_STYLE[observation.type];
+  const hasRedTag = Boolean(observation.redTagId);
+  const hasAction = Boolean(action);
+  const canCreateAction = onCreateAction && observation.type !== "Positive" && !hasAction;
+  const canCreateRedTag = onCreateRedTag && observation.type === "Issue" && !hasRedTag;
+  
   return <>
     <article id={observation.id} className={cn("scroll-mt-24 overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm", style.border)}>
       <div className={cn("flex min-w-0 items-start gap-3", compact ? "p-3" : "p-4")}>
@@ -66,13 +72,19 @@ export function ObservationCard({ observation, action, onEdit, onCreateAction, c
           <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5">{observation.title}</h3>
           {!compact && <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{observation.description}</p>}
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1"><MapPin className="size-3 shrink-0" /><span className="truncate">{observation.location}</span></span><span>{observation.evidence.length} photo{observation.evidence.length === 1 ? "" : "s"}</span></div>
-          {observation.noActionReason && !action && <p className={cn("mt-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground", style.soft)}>{observation.noActionReason}</p>}
+          {observation.noActionReason && !hasAction && !hasRedTag && <p className={cn("mt-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground", style.soft)}>{observation.noActionReason}</p>}
         </div>
       </div>
       <footer className="flex min-w-0 flex-wrap items-center gap-1 border-t bg-muted/[0.18] px-3 py-2">
         <Button size="sm" variant="ghost" onClick={() => setViewOpen(true)}><Eye className="size-3.5" />View</Button>
         {onEdit && <Button size="sm" variant="ghost" onClick={onEdit}><Pencil className="size-3.5" />Edit</Button>}
-        {action ? <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action.id)}`} />} className="ml-auto"><FileCheck2 className="size-3.5" />{action.id}<Badge size="sm" variant={ACTION_STATUS_CONFIG[action.status].variant} className="ml-1 hidden sm:inline-flex">{action.status}</Badge></Button> : onCreateAction && observation.type !== "Positive" ? <Button size="sm" variant="outline" onClick={onCreateAction} className="ml-auto"><Plus className="size-3.5" />Create Action</Button> : <span className="ml-auto text-[11px] text-muted-foreground">No action needed</span>}
+        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1">
+          {hasAction && <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action!.id)}`} />}><FileCheck2 className="size-3.5" />{action!.id}<Badge size="sm" variant={ACTION_STATUS_CONFIG[action!.status].variant} className="ml-1 hidden sm:inline-flex">{action!.status}</Badge></Button>}
+          {hasRedTag && <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/5s/red/${encodeURIComponent(observation.redTagId!)}`} />}><Tag className="size-3.5" />{observation.redTagId}</Button>}
+          {canCreateAction && <Button size="sm" variant="outline" onClick={onCreateAction}><Plus className="size-3.5" />Create Action</Button>}
+          {canCreateRedTag && <Button size="sm" variant="outline" onClick={onCreateRedTag}><Tag className="size-3.5" />Create Red Tag</Button>}
+          {!hasAction && !hasRedTag && !canCreateAction && !canCreateRedTag && <span className="text-[11px] text-muted-foreground">No action needed</span>}
+        </div>
       </footer>
     </article>
 

@@ -367,6 +367,20 @@ export function linkGembaAction(walkId: string, observationId: string, actionId:
   return persist({ walks, observations });
 }
 
+export function linkGembaRedTag(walkId: string, observationId: string, redTagId: string, actor: GembaActor) {
+  load();
+  const walk = state.walks.find((item) => item.id === walkId);
+  const observation = state.observations.find((item) => item.id === observationId && item.gembaId === walkId);
+  if (!walk || !observation || observation.redTagId) return false;
+  const now = new Date().toISOString();
+  const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, redTagId, updatedAt: now } : item);
+  const walks = state.walks.map((item) => item.id === walkId ? {
+    ...item, updatedAt: now,
+    activity: [...item.activity, event("red_tag_created", `Red Tag ${redTagId} created`, actor, { observationId, actionId: redTagId })],
+  } : item);
+  return persist({ walks, observations });
+}
+
 export function completeGembaWalk(walkId: string, actor: GembaActor) {
   load();
   const now = new Date().toISOString();

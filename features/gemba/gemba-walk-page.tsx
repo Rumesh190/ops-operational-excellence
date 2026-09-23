@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Eye, 
 import type { LucideIcon } from "lucide-react";
 
 import { CreateLinkedActionDialog, type LinkedActionContext } from "@/features/actions/create-linked-action-dialog";
+import { CreateRedTagFromGembaDialog } from "@/features/gemba/components/create-red-tag-dialog";
 import { OpsFeedback } from "@/components/ops/ops-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +26,7 @@ import { deleteGembaPhoto, getGembaPhoto, isGembaPhotoStorageAvailable, saveGemb
 import { cn } from "@/lib/utils";
 import { CompactEmpty, GembaEvidenceImage, GembaEvidenceLightbox, GembaStatusBadge, ObservationCard, OBSERVATION_TYPE_STYLE } from "./gemba-components";
 import { canConductGembaWalk, canViewGembaWalk } from "./gemba-access";
-import { completeGembaWalk, linkGembaAction, saveGembaObservation, startGembaWalk, useGembaStore } from "./gemba-store";
+import { completeGembaWalk, linkGembaAction, linkGembaRedTag, saveGembaObservation, startGembaWalk, useGembaStore } from "./gemba-store";
 import { isEvidencePhotoRequired, type GembaEvidence, type GembaObservation, type GembaObservationType, type GembaVoiceNote, type GembaWalk } from "./types";
 import { VoiceCaptureFlow } from "./voice-capture-flow";
 import { formatGembaZoneLabel } from "./gemba-zone-labels";
@@ -50,6 +51,8 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
   const [editing, setEditing] = useState<GembaObservation | null>(null);
   const [linkedContext, setLinkedContext] = useState<LinkedActionContext | null>(null);
   const [actionOpen, setActionOpen] = useState(false);
+  const [redTagObservation, setRedTagObservation] = useState<GembaObservation | null>(null);
+  const [redTagOpen, setRedTagOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -68,12 +71,24 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
     setLinkedContext(toLinkedContext(walk!, observation));
     setActionOpen(true);
   }
+  function openRedTag(observation: GembaObservation) {
+    if (observation.redTagId) return;
+    setRedTagObservation(observation);
+    setRedTagOpen(true);
+  }
   function actionCreated(action: MyAction) {
     if (!linkedContext?.sourceObservationId) return false;
     const linked = linkGembaAction(walk!.id, linkedContext.sourceObservationId, action.id, currentUser);
     if (!linked) return false;
     setNotice(`${action.id} created and linked to ${linkedContext.sourceObservationId}.`);
     return true;
+  }
+  function redTagCreated(redTagId: string) {
+    if (!redTagObservation) return;
+    const linked = linkGembaRedTag(walk!.id, redTagObservation.id, redTagId, currentUser);
+    if (linked) {
+      setNotice(`${redTagId} created and linked to ${redTagObservation.id}.`);
+    }
   }
   function confirmComplete() {
     completeGembaWalk(walk!.id, currentUser);
@@ -91,11 +106,12 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
 
     {notice && <div className="flex items-center gap-2"><OpsFeedback tone="success" message={notice} className="flex-1" /><Button type="button" variant="ghost" size="icon-sm" onClick={() => setNotice("")} aria-label="Dismiss notification"><X className="size-4" /></Button></div>}
 
-    <div className="grid gap-3">{observations.map((observation) => <ObservationCard key={observation.id} observation={observation} action={observation.actionId ? actionMap.get(observation.actionId) : undefined} onEdit={() => openEdit(observation)} onCreateAction={() => openAction(observation)} />)}{observations.length === 0 && <Card className="gap-0"><CompactEmpty title="No observations captured yet" description="Use + Add Observation while walking the area. A title and type are enough to save quickly." action={<Button onClick={openNew}><Plus className="size-4" />Add Observation</Button>} /></Card>}</div>
+    <div className="grid gap-3">{observations.map((observation) => <ObservationCard key={observation.id} observation={observation} action={observation.actionId ? actionMap.get(observation.actionId) : undefined} onEdit={() => openEdit(observation)} onCreateAction={() => openAction(observation)} onCreateRedTag={() => openRedTag(observation)} />)}{observations.length === 0 && <Card className="gap-0"><CompactEmpty title="No observations captured yet" description="Use + Add Observation while walking the area. A title and type are enough to save quickly." action={<Button onClick={openNew}><Plus className="size-4" />Add Observation</Button>} /></Card>}</div>
 
     <div className="mobile-safe-bottom fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur sm:hidden"><Button className="w-full" onClick={openNew}><Plus className="size-4" />Add Observation</Button></div>
     <ObservationCaptureDialog key={`${editing?.id ?? "new"}-${captureOpen}`} open={captureOpen} onOpenChange={setCaptureOpen} walkId={walk.id} plant={walk.plant} zone={walk.zone} walkPurpose={walk.purpose} currentUser={currentUser} participants={walk.participants.map((item) => item.name)} observation={editing} onSaved={(observation, createAction) => { setNotice(`${observation.id} ${editing ? "updated" : "saved"}.`); setCaptureOpen(false); setEditing(null); if (createAction) { setLinkedContext(toLinkedContext(walk, observation)); setActionOpen(true); } }} />
     <CreateLinkedActionDialog key={linkedContext?.sourceObservationId ?? "no-observation"} open={actionOpen} onOpenChange={setActionOpen} context={linkedContext} onCreated={actionCreated} />
+    {redTagObservation && <CreateRedTagFromGembaDialog key={redTagObservation.id} open={redTagOpen} onOpenChange={setRedTagOpen} observation={redTagObservation} walkId={walk.id} plant={walk.plant} zone={walk.zone} onCreated={redTagCreated} />}
 
     <Dialog open={completeOpen} onOpenChange={setCompleteOpen}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Review and complete walk</DialogTitle><DialogDescription>Confirm the captured record before closing this Gemba walk.</DialogDescription></DialogHeader><div className="grid gap-4"><div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-muted/[0.18] p-4 text-sm"><Summary label="Plant" value={walk.plant} /><Summary label="Zone" value={formatGembaZoneLabel(walk.zone)} /><Summary label="Lead" value={walk.leadName} /><Summary label="Participants" value={String(walk.participants.length)} /><Summary label="Started" value={formatDateTime(walk.startedAt)} /><Summary label="Completing" value="Now" /></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Count label="Positive" value={counts.Positive} type="Positive" /><Count label="Opportunity" value={counts.Opportunity} type="Opportunity" /><Count label="Issue" value={counts.Issue} type="Issue" /><Count label="Actions" value={walk.actionIds.length} /></div>{outstanding.length > 0 && <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-3"><p className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300"><AlertTriangle className="size-4" />{outstanding.length} issue{outstanding.length === 1 ? "" : "s"} without an action</p><p className="mt-1 text-xs leading-5 text-muted-foreground">You may still complete the walk. Add an action or record why follow-up is not required when appropriate.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setCompleteOpen(false)}>Continue Walking</Button><Button onClick={confirmComplete} disabled={observations.length === 0}>Complete Walk</Button></DialogFooter></DialogContent></Dialog>
   </PageContainer>;

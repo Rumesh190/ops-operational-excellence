@@ -47,6 +47,7 @@ export type GembaActivityType =
   | "photo_uploaded"
   | "voice_note_added"
   | "action_created"
+  | "red_tag_created"
   | "observation_edited"
   | "walk_completed";
 
@@ -87,6 +88,7 @@ export interface GembaObservation {
   createdAt: string;
   updatedAt: string;
   actionId?: string;
+  redTagId?: string;
   noActionReason?: string;
 }
 
