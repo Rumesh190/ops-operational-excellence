@@ -115,11 +115,18 @@ export function isActionOverdue(action: MyAction, now = new Date()) {
 export function getActionDueLabel(action: MyAction, now = new Date()) {
   if (action.status === "Completed") return action.completedAt ? `Completed ${formatShortDate(action.completedAt)}` : "Completed";
   const days = actionDueDays(action, now);
-  if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"}`;
-  if (days === 0) return "Due today";
-  if (days === 1) return "Due tomorrow";
-  if (days <= 3) return `Due in ${days} days`;
-  return `Due ${formatShortDate(action.dueDate)}`;
+  const dueDate = formatShortDate(action.dueDate);
+  
+  // Always show actual due date with relative context (Feedback #28)
+  if (days < 0) {
+    const overdueDays = Math.abs(days);
+    const daysLabel = overdueDays === 1 ? "1 day" : `${overdueDays} days`;
+    return `${dueDate} · Overdue by ${daysLabel}`;
+  }
+  if (days === 0) return `${dueDate} · Due today`;
+  if (days === 1) return `${dueDate} · Due tomorrow`;
+  if (days <= 3) return `${dueDate} · Due in ${days} days`;
+  return dueDate;
 }
 
 export function getActionUpdatedAt(action: MyAction) {

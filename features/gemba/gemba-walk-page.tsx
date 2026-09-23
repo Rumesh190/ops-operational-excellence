@@ -281,8 +281,8 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
       ? { title: "Add Observation", description: "Tell us what you observed" }
       : { title: observation ? "Edit Observation" : "Add Observation", description: "Capture the essential detail now. Everything else is optional." };
 
-  return <><Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="flex max-h-[94dvh] w-full flex-col gap-0 overflow-hidden p-4 sm:max-h-[90vh] sm:max-w-[92vw] sm:p-8 lg:max-w-[min(960px,calc(100vw-64px))]">
-    <DialogHeader className="shrink-0 pb-3 sm:pb-4"><DialogTitle>{header.title}</DialogTitle><DialogDescription>{header.description}</DialogDescription></DialogHeader>
+  return <><Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="flex max-h-[94dvh] w-full flex-col gap-0 overflow-hidden p-5 sm:max-h-[90vh] sm:max-w-[94vw] sm:p-8 lg:max-w-[min(1024px,calc(100vw-64px))]">
+    <DialogHeader className="shrink-0 pb-4 sm:pb-5"><DialogTitle>{header.title}</DialogTitle><DialogDescription>{header.description}</DialogDescription></DialogHeader>
 
     <div className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 sm:-mx-8 sm:px-8">
       {mode === "choose" && <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-4 py-2 sm:grid-cols-2">

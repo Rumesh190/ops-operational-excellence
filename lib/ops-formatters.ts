@@ -1,3 +1,10 @@
+/**
+ * OPS Presentation Formatters
+ * 
+ * Shared formatting utilities for consistent data presentation
+ * across the OPS application.
+ */
+
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
@@ -63,4 +70,41 @@ export function formatOpsRelativeDate(value: string | Date, now = new Date()) {
   if (days === 1) return "Tomorrow";
   if (days === -1) return "Yesterday";
   return formatOpsDate(date);
+}
+
+/**
+ * Format duration in days with human-readable singular/plural wording
+ * User-facing presentation (Feedback #14)
+ * 
+ * @param days - Number of days
+ * @returns Formatted string (e.g., "1 day", "3 days")
+ */
+export function formatDaysLabel(days: number): string {
+  if (days === 1) {
+    return '1 day';
+  }
+  return `${days} days`;
+}
+
+/**
+ * Format days remaining for due dates with human-readable wording
+ * User-facing presentation (Feedback #14)
+ * 
+ * @param days - Number of days remaining (positive = future, negative = overdue)
+ * @returns Formatted string
+ */
+export function formatDaysRemaining(days: number): string {
+  if (days === 0) {
+    return 'Due today';
+  }
+  if (days === 1) {
+    return '1 day remaining';
+  }
+  if (days > 1) {
+    return `${days} days remaining`;
+  }
+  if (days === -1) {
+    return 'Overdue by 1 day';
+  }
+  return `Overdue by ${Math.abs(days)} days`;
 }
