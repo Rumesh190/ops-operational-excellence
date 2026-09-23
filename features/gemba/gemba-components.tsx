@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Camera, Eye, FileCheck2, ImageIcon, MapPin, Mic, Pencil, Plus, Tag } from "lucide-react";
+import { Camera, Eye, FileCheck2, ImageIcon, Lightbulb, MapPin, Mic, Pencil, Plus, Tag } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { OpsEmptyState } from "@/components/ops/ops-empty-state";
@@ -47,21 +47,24 @@ export function GembaTabBar({ tabs, active, onChange, label = "Gemba views" }: {
   return <OpsTabBar tabs={tabs} active={active} onChange={onChange} label={label} />;
 }
 
-export function ObservationCard({ observation, action, onEdit, onCreateAction, onCreateRedTag, compact = false }: {
+export function ObservationCard({ observation, action, onEdit, onCreateAction, onCreateRedTag, onCreateImprovement, compact = false }: {
   observation: GembaObservation;
   action?: MyAction;
   onEdit?: () => void;
   onCreateAction?: () => void;
   onCreateRedTag?: () => void;
+  onCreateImprovement?: () => void;
   compact?: boolean;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [preview, setPreview] = useState<GembaObservation["evidence"][number] | null>(null);
   const style = OBSERVATION_TYPE_STYLE[observation.type];
   const hasRedTag = Boolean(observation.redTagId);
+  const hasImprovement = Boolean(observation.improvementId);
   const hasAction = Boolean(action);
   const canCreateAction = onCreateAction && observation.type !== "Positive" && !hasAction;
   const canCreateRedTag = onCreateRedTag && observation.type === "Issue" && !hasRedTag;
+  const canCreateImprovement = onCreateImprovement && observation.type === "Opportunity" && !hasImprovement;
   
   return <>
     <article id={observation.id} className={cn("scroll-mt-24 overflow-hidden rounded-xl border border-l-[3px] bg-card shadow-sm", style.border)}>
@@ -81,9 +84,11 @@ export function ObservationCard({ observation, action, onEdit, onCreateAction, o
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1">
           {hasAction && <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/actions/${encodeURIComponent(action!.id)}`} />}><FileCheck2 className="size-3.5" />{action!.id}<Badge size="sm" variant={ACTION_STATUS_CONFIG[action!.status].variant} className="ml-1 hidden sm:inline-flex">{action!.status}</Badge></Button>}
           {hasRedTag && <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/5s/red/${encodeURIComponent(observation.redTagId!)}`} />}><Tag className="size-3.5" />{observation.redTagId}</Button>}
+          {hasImprovement && <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/continuous-improvement/${encodeURIComponent(observation.improvementId!)}`} />}><Lightbulb className="size-3.5" />{observation.improvementId}</Button>}
           {canCreateAction && <Button size="sm" variant="outline" onClick={onCreateAction}><Plus className="size-3.5" />Create Action</Button>}
           {canCreateRedTag && <Button size="sm" variant="outline" onClick={onCreateRedTag}><Tag className="size-3.5" />Create Red Tag</Button>}
-          {!hasAction && !hasRedTag && !canCreateAction && !canCreateRedTag && <span className="text-[11px] text-muted-foreground">No action needed</span>}
+          {canCreateImprovement && <Button size="sm" variant="outline" onClick={onCreateImprovement}><Plus className="size-3.5" />Create Improvement</Button>}
+          {!hasAction && !hasRedTag && !hasImprovement && !canCreateAction && !canCreateRedTag && !canCreateImprovement && <span className="text-[11px] text-muted-foreground">No action needed</span>}
         </div>
       </footer>
     </article>

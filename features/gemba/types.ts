@@ -89,6 +89,7 @@ export interface GembaObservation {
   updatedAt: string;
   actionId?: string;
   redTagId?: string;
+  improvementId?: string;
   noActionReason?: string;
 }
 

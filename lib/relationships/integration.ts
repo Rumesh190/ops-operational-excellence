@@ -12,4 +12,4 @@
  * - Legacy records without relationships continue working
  */
 
-export { linkGembaObservationToAction, getGembaObservationRef, getGembaWalkRef } from "../gemba/gemba-relationships";
+export { linkGembaObservationToImprovement } from "../gemba/gemba-relationships";
