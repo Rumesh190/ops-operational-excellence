@@ -46,8 +46,8 @@ describe("Gemba dialog layout polish — Add Observation capture-method selector
     expect(gembaWalkPageSource).toContain("Save Observation");
   });
 
-  it("keeps the dialog at the existing ~960px desktop width philosophy (unchanged by this polish pass)", () => {
-    expect(gembaWalkPageSource).toContain("lg:max-w-[min(960px,calc(100vw-64px))]");
+  it("keeps the dialog at the approved 1024px desktop width without going full-screen", () => {
+    expect(gembaWalkPageSource).toContain("lg:max-w-[min(1024px,calc(100vw-64px))]");
   });
 
   it("keeps the Manual → canonical form and Voice → VoiceCaptureFlow → canonical form branching untouched", () => {

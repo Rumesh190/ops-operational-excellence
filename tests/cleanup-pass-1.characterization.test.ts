@@ -20,6 +20,7 @@ const baseAction: MyAction = {
   sourceTitle: "Manual",
   sourceLabel: "Manual",
   plant: "Test Plant",
+  department: "Operations",
   area: "Test Zone",
   status: "Open",
   priority: "Medium",
@@ -39,7 +40,8 @@ const baseAction: MyAction = {
 const testUser: DemoUser = {
   id: "user-1",
   name: "Test User",
-  email: "test@example.com",
+  role: "Zone Leader",
+  initials: "TU",
   plant: "Test Plant",
   primaryZone: "Test Zone",
   isSuperAdmin: false,
@@ -47,11 +49,15 @@ const testUser: DemoUser = {
 
 const testAdmin: AdminUser = {
   id: "user-1",
+  employeeId: "EMP-TEST-001",
   name: "Test User",
-  email: "test@example.com",
+  email: "test.user@example.com",
   plant: "Test Plant",
+  status: "Active",
   roles: ["Admin"],
-  permissions: ["actions.create", "actions.view", "actions.edit", "actions.review", "actions.close"],
+  zoneMemberships: [{ zone: "Test Zone", responsibility: "Leader" }],
+  permissions: ["actions.create", "actions.view", "actions.review", "actions.close"],
+  updatedAt: "2026-09-23T00:00:00.000Z",
 };
 
 describe("Feedback #14 — Human-readable day labels (already correct)", () => {
@@ -59,15 +65,17 @@ describe("Feedback #14 — Human-readable day labels (already correct)", () => {
     const action = { ...baseAction, dueDate: "2026-09-24" };
     const now = new Date("2026-09-23T12:00:00Z");
     const label = getActionDueLabel(action, now);
-    expect(label).toContain("1 day");
+    // After #28 fix, shows "24 Sep 2026 · Due tomorrow"
+    expect(label).toContain("Due tomorrow");
     expect(label).not.toContain("1 days");
   });
 
   it("uses plural 'days' for multiple days", () => {
-    const action = { ...baseAction, dueDate: "2026-09-25" };
-    const now = new Date("2026-09-20T12:00:00Z");
+    const action = { ...baseAction, dueDate: "2026-09-26" };
+    const now = new Date("2026-09-23T12:00:00Z");
     const label = getActionDueLabel(action, now);
-    expect(label).toContain("5 days");
+    // After #28 fix, shows "26 Sep 2026 · Due in 3 days"
+    expect(label).toContain("3 days");
   });
 
   it("uses singular 'day' when overdue by 1 day", () => {

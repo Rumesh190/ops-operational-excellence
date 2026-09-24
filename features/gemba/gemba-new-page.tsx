@@ -95,27 +95,26 @@ export default function GembaNewPage() {
     router.push(startNow ? `/gemba/${walk.id}/walk` : `/gemba/${walk.id}`);
   }
 
-  return <PageContainer className="max-w-5xl">
+  return <PageContainer>
     <FiveSPageHeader eyebrow={meetingReference ? `Visual Management / ${meetingReference}` : "Gemba"} title="Start a Gemba Walk" description={meetingReference ? "Meeting context has been carried into the Gemba follow-up." : "Set the area and focus, invite the people closest to the work, then begin observing."} leading={<Button size="icon-sm" variant="ghost" onClick={() => router.push(meetingReference ? `/visual-management/meetings/${meetingReference}` : "/gemba")} aria-label="Back to Gemba"><ArrowLeft className="size-4" /></Button>} />
     {!allowed ? <Card><CardContent className="grid min-h-60 place-items-center p-6 text-center"><div><p className="text-sm font-semibold">Conduct access required</p><p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">Admins and authorized auditors can start walks. Zone users can participate and view walks for their area.</p><Button className="mt-4" variant="outline" onClick={() => router.push("/gemba")}>Return to Gemba</Button></div></CardContent></Card> : <Card className="gap-0 overflow-hidden">
       <CardHeader className="border-b bg-muted/[0.16] pb-4"><CardTitle className="text-base">Walk setup</CardTitle><p className="text-xs text-muted-foreground">This setup stays intentionally short for use on the floor.</p></CardHeader>
       <CardContent className="grid gap-5 p-4 sm:p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <Field label="Plant"><Input value={currentPlant} disabled /></Field>
           <Field label="Zone *"><Select value={zoneName} onValueChange={(value) => changeZone(value ?? initialZone?.name ?? "")}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{zoneConfiguration.map((item) => <SelectItem key={item.name} value={item.name}>{formatGembaZoneLabel(item.name)}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Walk Lead"><Input value={`${currentUser.name} · Logged in user`} disabled /></Field>
-        </div>
-
-        <div className="grid gap-2">
-          <p className="text-sm font-medium">When *</p>
-          <div className="grid grid-cols-2 gap-2 sm:max-w-sm">
-            <button type="button" onClick={() => setMode("now")} className={cn("min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", mode === "now" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30")}>Start now</button>
-            <button type="button" onClick={() => setMode("schedule")} className={cn("min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", mode === "schedule" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30")}>Schedule</button>
+          <div className="grid content-start gap-2">
+            <p className="text-sm font-medium">When *</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setMode("now")} className={cn("min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", mode === "now" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30")}>Start now</button>
+              <button type="button" onClick={() => setMode("schedule")} className={cn("min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", mode === "schedule" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30")}>Schedule</button>
+            </div>
+            {mode === "schedule" && <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Date *"><Input type="date" value={scheduledDate} onChange={(event) => setScheduledDate(event.target.value)} /></Field>
+              <Field label="Time *"><Input type="time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} /></Field>
+            </div>}
           </div>
-          {mode === "schedule" && <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Date *"><Input type="date" value={scheduledDate} onChange={(event) => setScheduledDate(event.target.value)} /></Field>
-            <Field label="Time *"><Input type="time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} /></Field>
-          </div>}
         </div>
 
         <Field label="Purpose / Focus *"><Input value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="e.g. Observe material flow and operator motion" /></Field>
