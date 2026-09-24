@@ -53,7 +53,7 @@ const LEGACY_CATEGORY_KEY = "ops-action-categories-v1";
 const CREATED_AT = "2026-09-15T00:00:00.000Z";
 
 export const DEFAULT_ACTION_PRIORITY_CONFIG: ActionPrioritySetting[] = [
-  { id: "Critical", label: "Critical", dueOffsetDays: 1, active: true, description: "Immediate attention required", order: 1 },
+  { id: "Critical", label: "Critical", dueOffsetDays: 1, active: false, description: "Legacy priority retained for historical records", order: 1 },
   { id: "High", label: "High", dueOffsetDays: 1, active: true, description: "High-priority corrective work", order: 2 },
   { id: "Medium", label: "Medium", dueOffsetDays: 2, active: true, description: "Standard corrective or improvement work", order: 3 },
   { id: "Low", label: "Low", dueOffsetDays: 3, active: true, description: "Lower urgency planned work", order: 4 },
@@ -185,11 +185,11 @@ export function saveActionPriorities(priorities: ActionPrioritySetting[]) {
 }
 
 export function getActiveActionPriorities() {
-  return getActionConfiguration().priorities.filter((item) => item.active).sort((a, b) => a.order - b.order);
+  return getActionConfiguration().priorities.filter((item) => item.active && item.id !== "Critical").sort((a, b) => a.order - b.order);
 }
 
 export function useActiveActionPriorities() {
-  return useActionConfiguration().priorities.filter((item) => item.active).sort((a, b) => a.order - b.order);
+  return useActionConfiguration().priorities.filter((item) => item.active && item.id !== "Critical").sort((a, b) => a.order - b.order);
 }
 
 export function getPriorityDueDate(priority: MyActionPriority, today = new Date()) {

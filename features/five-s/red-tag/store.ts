@@ -61,10 +61,11 @@ export function normalizeRedTagStatus(status: string, tag?: Partial<RedTag>): Re
 
 export function normalizeRedTag(tag: RedTag): RedTag {
   const legacyStatus = String((tag as { status?: string }).status ?? "Open");
+  const afterEvidence = tag.afterEvidence?.length ? tag.afterEvidence : tag.dispositionDetails?.evidence?.length ? tag.dispositionDetails.evidence : tag.closure?.evidence ?? [];
   return {
     ...tag,
     status: normalizeRedTagStatus(legacyStatus, tag),
-    afterEvidence: tag.afterEvidence ?? [],
+    afterEvidence,
     removalConfirmed: tag.removalConfirmed ?? false,
     history: tag.history ?? [],
     dispositionDetails: tag.dispositionDetails ? { ...tag.dispositionDetails, evidence: tag.dispositionDetails.evidence ?? [] } : undefined,
@@ -119,7 +120,7 @@ export type CreateRedTagV2Input = Omit<RedTag, "id" | "tagNumber" | "status" | "
 
 /** Validates the physical-item fields required by the V2 create experience. */
 export function createRedTagV2(input: CreateRedTagV2Input, user: DemoUser) {
-  if (!input.itemName.trim() || !input.remarks.trim() || !input.section.trim() || !input.department.trim() || !input.imageUrl.trim()) return undefined;
+  if (!input.itemName.trim() || !input.remarks.trim() || !input.section.trim() || !input.department.trim() || !input.imageUrl?.trim()) return undefined;
   if (!Number.isFinite(input.quantity) || input.quantity < 1 || !RED_TAG_CATEGORIES.includes(input.category)) return undefined;
   if (input.reason === "Others" && !input.customReason?.trim()) return undefined;
   if (input.estimatedValue !== undefined && (!Number.isFinite(input.estimatedValue) || input.estimatedValue < 0)) return undefined;
@@ -228,7 +229,7 @@ export function completeRedTagDisposition(id: string, evidenceOrInput: RedTagEvi
   if (["keep", "further_evaluation"].includes(tag.decisionRecord.type)) return undefined;
   if (tag.actionId && tag.syncedActionStatus !== "Completed") return undefined;
   const input = Array.isArray(evidenceOrInput) ? { evidence: evidenceOrInput } : evidenceOrInput;
-  if (!input.evidence.length) return undefined;
+  if (!input.evidence.length || !input.completionNotes?.trim() || input.responsibleConfirmed !== true) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
@@ -249,9 +250,12 @@ export function verifyRedTagDisposition(id: string, input: VerifyRedTagDispositi
   const tag = getRedTag(id);
   const readyForVerification = tag?.decisionRecord?.type === "keep" ? Boolean(tag.keepConfirmation) : Boolean(tag?.dispositionDetails?.completedAt);
   if (!tag || tag.status !== "Awaiting Verification" || !readyForVerification || !input.details.trim()) return undefined;
+  const afterEvidence = [...(tag.afterEvidence ?? []), ...(input.evidence ?? [])];
+  if (input.passed && (!tag.imageUrl?.trim() || !afterEvidence.length)) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
+    afterEvidence,
     closure: { verificationResult: input.passed ? "Passed" : "Failed", verificationDetails: input.details.trim(), verifiedAt: now, verifiedByUserId: actor.id, verifiedByName: actor.name, evidence: input.evidence ?? [] },
     history: [...current.history, history(input.passed ? "verified" : "verification_failed", input.passed ? "Disposition verified" : "Disposition verification failed", actor, now)],
   }));
@@ -282,7 +286,7 @@ export function updateFurtherEvaluationDecision(id: string, decision: Exclude<Re
 
 export function closeRedTag(id: string, actor: DemoUser) {
   const tag = getRedTag(id);
-  if (!tag || !canTransition(tag.status, "Closed") || tag.closure?.verificationResult !== "Passed") return undefined;
+  if (!tag || !canTransition(tag.status, "Closed") || tag.closure?.verificationResult !== "Passed" || !tag.imageUrl?.trim() || !(tag.afterEvidence?.length)) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
@@ -358,7 +362,7 @@ export function closeRedTagAfterRemoval(id: string, action: MyAction | undefined
   // Legacy compatibility only; V2 closure goes through closeRedTag().
   if (tag?.decisionRecord || tag?.dispositionDetails) return undefined;
   if (!tag || tag.status !== "Awaiting Verification" || !tag.actionId || action?.id !== tag.actionId || action.status !== "Completed") return undefined;
-  if (!tag.verifiedAt || !tag.verificationRemark || !tag.disposition || !(tag.afterEvidence?.length) || !removalConfirmed) return undefined;
+  if (!tag.imageUrl?.trim() || !tag.verifiedAt || !tag.verificationRemark || !tag.disposition || !(tag.afterEvidence?.length) || !removalConfirmed) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,

@@ -78,7 +78,7 @@ import { optimizeEvidenceImage, MAX_EVIDENCE_IMAGES } from "@/lib/evidence-image
 
 import { createAction, getActionById, updateAction } from "@/lib/actions/action-store";
 import { updateFiveSAudit } from "@/lib/five-s/audit-store";
-import { AUDIT_LIFECYCLE_STAGES } from "@/lib/five-s/lifecycle-status";
+import { AUDIT_EXECUTION_LIFECYCLE_STAGES } from "@/lib/five-s/lifecycle-status";
 import { useCurrentUser } from "@/lib/current-user";
 import {
   getFiveSZoneConfiguration,
@@ -197,7 +197,7 @@ const SCORE_INDICATOR_STYLES: Record<number, string> = {
 function AuditLifecycleTimeline({ currentIndex }: { currentIndex: number }) {
   return (
     <div className="flex min-w-[360px] flex-1 items-center" aria-label="Audit lifecycle">
-      {AUDIT_LIFECYCLE_STAGES.map((label, index) => {
+      {AUDIT_EXECUTION_LIFECYCLE_STAGES.map((label, index) => {
         const complete = index < currentIndex;
         const current = index === currentIndex;
 
@@ -206,7 +206,7 @@ function AuditLifecycleTimeline({ currentIndex }: { currentIndex: number }) {
             <span className={`relative z-10 flex size-5 shrink-0 items-center justify-center rounded-full border text-[9px] ${complete ? "border-emerald-500 bg-emerald-500 text-white" : current ? "border-primary bg-primary text-primary-foreground ring-4 ring-primary/10" : "border-border bg-background text-muted-foreground"}`}>
               {complete ? <Check className="size-3" /> : index + 1}
             </span>
-            {index < AUDIT_LIFECYCLE_STAGES.length - 1 && <span className={`absolute left-[calc(50%+10px)] right-[calc(-50%+10px)] top-2.5 h-px ${index < currentIndex ? "bg-emerald-400" : "bg-border"}`} />}
+            {index < AUDIT_EXECUTION_LIFECYCLE_STAGES.length - 1 && <span className={`absolute left-[calc(50%+10px)] right-[calc(-50%+10px)] top-2.5 h-px ${index < currentIndex ? "bg-emerald-400" : "bg-border"}`} />}
             <span className={`min-w-0 text-xs leading-4 ${current ? "font-semibold text-primary" : complete ? "font-medium text-foreground" : "font-medium text-muted-foreground"}`}>{label}</span>
           </div>
         );
@@ -2383,7 +2383,7 @@ function FiveSAuditExecution({
                                       }
                                     >
                                       <Upload className="mr-1.5 size-3.5" />
-                                      {t("common.upload")}
+                                      Upload Photo
                                     </Button>
 
                                     <Button
@@ -2399,7 +2399,7 @@ function FiveSAuditExecution({
                                       }
                                     >
                                       <Camera className="mr-1.5 size-3.5" />
-                                      {t("common.camera")}
+                                      Take Photo
                                     </Button>
                                   </div>
                                 </div>
@@ -2925,8 +2925,8 @@ function ActionDialog({
                 {canEditCreatedAction && <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                   <input ref={evidenceInputRef} type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={onEvidenceUpload} />
                   <input ref={evidenceCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onEvidenceUpload} />
-                  <Button type="button" size="sm" variant="outline" className="order-2 flex-1 sm:order-1 sm:flex-none" onClick={() => evidenceInputRef.current?.click()}><Upload className="mr-1.5 size-3.5" /> {t("common.upload")}</Button>
-                  <Button type="button" size="sm" variant="outline" className="order-1 flex-1 sm:order-2 sm:flex-none" onClick={() => evidenceCameraRef.current?.click()}><Camera className="mr-1.5 size-3.5" /> {t("common.camera")}</Button>
+                  <Button type="button" size="sm" variant="outline" className="order-2 flex-1 sm:order-1 sm:flex-none" onClick={() => evidenceInputRef.current?.click()}><Upload className="mr-1.5 size-3.5" />Upload Photo</Button>
+                  <Button type="button" size="sm" variant="outline" className="order-1 flex-1 sm:order-2 sm:flex-none" onClick={() => evidenceCameraRef.current?.click()}><Camera className="mr-1.5 size-3.5" />Take Photo</Button>
                 </div>}
               </div>
               {state.evidence.length > 0 ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{state.evidence.map((evidence) => <div key={evidence.id} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background p-2"><button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => onEvidencePreview(evidence)}>{evidence.type === "image" ? <img src={evidence.dataUrl} alt="" className="size-11 shrink-0 rounded object-cover" /> : <span className="grid size-11 shrink-0 place-items-center rounded bg-muted"><FileText className="size-5" /></span>}<span className="min-w-0"><span className="block truncate text-xs font-medium">{evidence.name}</span><span className="text-[10px] text-muted-foreground">{getEvidenceFileLabel(evidence)} · {formatEvidenceSize(evidence.size)}</span></span></button>{canEditCreatedAction && <Button type="button" size="icon-sm" variant="ghost" onClick={() => onEvidenceRemove(evidence.id)} aria-label={`Remove ${evidence.name}`}><Trash2 className="size-3.5" /></Button>}</div>)}</div> : requiresEvidence && <p className="mt-3 text-[11px] font-medium text-destructive">At least one evidence attachment is required for Non Compliance or Partial Compliance.</p>}

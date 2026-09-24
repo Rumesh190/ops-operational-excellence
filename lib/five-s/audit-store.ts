@@ -552,7 +552,8 @@ export function createFiveSAudit(
     | "maxScore"
     | "completionPercentage"
     | "status"
-  >
+  >,
+  options: { startNow?: boolean } = {}
 ): FiveSAudit {
   initializeStore();
 
@@ -589,6 +590,7 @@ export function createFiveSAudit(
       input.area
     );
 
+  const startNow = options.startNow ?? true;
   const audit: FiveSAudit = {
     ...input,
     sections,
@@ -604,7 +606,7 @@ export function createFiveSAudit(
      */
     title: generatedTitle,
 
-    status: "Draft",
+    status: startNow ? "In Progress" : "Scheduled",
 
     score:
       calculateScore(
@@ -621,11 +623,9 @@ export function createFiveSAudit(
         sections
       ),
 
-    startedAt:
-      input.startedAt ??
-      now
-        .toISOString()
-        .slice(0, 10),
+    startedAt: startNow
+      ? input.startedAt ?? now.toISOString().slice(0, 10)
+      : undefined,
   };
 
   audits = [
@@ -664,10 +664,22 @@ export function updateFiveSAudit(
           return audit;
         }
 
-        updatedAudit = {
+        const nextAudit = {
           ...audit,
           ...updates,
         };
+
+        updatedAudit = audit.status === "Draft"
+          ? nextAudit
+          : {
+              ...nextAudit,
+              id: audit.id,
+              title: audit.title,
+              plant: audit.plant,
+              department: audit.department,
+              area: audit.area,
+              auditor: audit.auditor,
+            };
 
         return updatedAudit;
       }
@@ -682,6 +694,55 @@ export function updateFiveSAudit(
   }
 
   return updatedAudit;
+}
+
+export function validateFiveSAuditSchedule(
+  scheduledDate: string,
+  scheduledTime: string,
+  now = new Date()
+): string | null {
+  if (!scheduledDate || !scheduledTime) return "Choose a scheduled date and time.";
+
+  const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}:00`);
+  if (Number.isNaN(scheduledAt.getTime())) return "Choose a valid scheduled date and time.";
+  if (scheduledAt.getTime() <= now.getTime()) return "Scheduled date and time must be in the future.";
+  return null;
+}
+
+export function updateScheduledFiveSAuditSetup(
+  auditId: string,
+  updates: Pick<FiveSAudit, "dueDate" | "scheduledDate" | "scheduledTime">,
+  now = new Date()
+): FiveSAudit | undefined {
+  initializeStore();
+  const existingAudit = audits.find((audit) => audit.id === auditId);
+  if (!existingAudit || existingAudit.status !== "Scheduled") return undefined;
+  if (validateFiveSAuditSchedule(updates.scheduledDate ?? "", updates.scheduledTime ?? "", now)) return undefined;
+
+  const updatedAudit = { ...existingAudit, ...updates };
+  audits = audits.map((audit) => audit.id === auditId ? updatedAudit : audit);
+  persistAudits();
+  emitChange();
+  return updatedAudit;
+}
+
+export function startScheduledFiveSAudit(
+  auditId: string,
+  now = new Date()
+): FiveSAudit | undefined {
+  initializeStore();
+  const existingAudit = audits.find((audit) => audit.id === auditId);
+  if (!existingAudit || existingAudit.status !== "Scheduled") return undefined;
+
+  const startedAudit: FiveSAudit = {
+    ...existingAudit,
+    status: "In Progress",
+    startedAt: now.toISOString().slice(0, 10),
+  };
+  audits = audits.map((audit) => audit.id === auditId ? startedAudit : audit);
+  persistAudits();
+  emitChange();
+  return startedAudit;
 }
 
 /* =========================================================
@@ -716,7 +777,11 @@ export function saveFiveSAuditDraft(
       existingAudit.status ===
       "Completed"
         ? "Completed"
-        : "Draft",
+        : existingAudit.status === "In Progress"
+          ? "In Progress"
+          : existingAudit.status === "Scheduled"
+            ? "Scheduled"
+            : "Draft",
 
     score:
       calculateScore(

@@ -5,11 +5,14 @@ import { useState } from "react";
 import FiveSAuditList from "./components/FiveSAuditList";
 import FiveSAuditCreate from "./components/FiveSAuditCreate";
 import FiveSAuditExecution from "./components/FiveSAuditExecution";
+import FiveSAuditScheduled from "./components/FiveSAuditScheduled";
 import { PageContainer } from "@/components/layout/page-container";
 
 import {
   createFiveSAudit,
   deleteFiveSAudit,
+  startScheduledFiveSAudit,
+  updateScheduledFiveSAuditSetup,
   useFiveSAuditStore,
 } from "@/lib/five-s/audit-store";
 
@@ -204,6 +207,9 @@ export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?
     area: string;
     auditor: string;
     dueDate: string;
+    startNow: boolean;
+    scheduledDate?: string;
+    scheduledTime?: string;
   }) {
     const sections = createAuditChecklistSnapshot(createEmptyFiveSSections());
 
@@ -215,8 +221,10 @@ export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?
         area: input.area,
         auditor: input.auditor,
         dueDate: input.dueDate,
+        scheduledDate: input.scheduledDate,
+        scheduledTime: input.scheduledTime,
         sections,
-      });
+      }, { startNow: input.startNow });
 
     setIsCreatingAudit(false);
     setSelectedAudit(audit);
@@ -231,6 +239,17 @@ export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?
   ) {
     setIsCreatingAudit(false);
     setSelectedAudit(audit);
+  }
+
+  function handleStartScheduledAudit(audit: FiveSAudit) {
+    const startedAudit = startScheduledFiveSAudit(audit.id);
+    if (startedAudit) setSelectedAudit(startedAudit);
+  }
+
+  function handleUpdateScheduledAudit(audit: FiveSAudit, updates: Pick<FiveSAudit, "dueDate" | "scheduledDate" | "scheduledTime">) {
+    const updatedAudit = updateScheduledFiveSAuditSetup(audit.id, updates);
+    if (updatedAudit) setSelectedAudit(updatedAudit);
+    return updatedAudit;
   }
 
   /* =======================================================
@@ -291,6 +310,9 @@ export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?
      ======================================================= */
 
   if (selectedAudit) {
+    if (selectedAudit.status === "Scheduled") {
+      return <FiveSAuditScheduled audit={selectedAudit} onBack={handleBack} onStart={handleStartScheduledAudit} onUpdate={handleUpdateScheduledAudit} />;
+    }
     return (
       <div className="grid gap-6">
         <FiveSAuditExecution
@@ -312,6 +334,7 @@ export default function FiveSAuditListPage({ initialAuditId }: { initialAuditId?
         audits={audits}
         onStartAudit={handleStartAudit}
         onViewAudit={handleViewAudit}
+        onStartScheduledAudit={handleStartScheduledAudit}
         onDeleteAudit={handleDeleteAudit}
         nav={<AuditNav />}
       />

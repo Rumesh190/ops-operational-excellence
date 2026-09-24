@@ -70,7 +70,7 @@ interface ActionCenterPageProps {
 
 const STATUS_FILTERS: ActionStatusFilter[] = ["All", "Open", "Overdue", "Awaiting Assignment", "Assigned", "In Progress", "Pending Auditor Review", "Rework Required", "Completed"];
 const DUE_FILTERS: ActionDueFilter[] = ["All", "Overdue", "Today", "Tomorrow", "Next 7 days"];
-const PRIORITIES: Array<"All" | MyActionPriority> = ["All", "Critical", "High", "Medium", "Low"];
+const PRIORITIES: Array<"All" | MyActionPriority> = ["All", "High", "Medium", "Low"];
 
 function validTab(value?: string): ActionCenterTab {
   return ACTION_CENTER_TABS.some((tab) => tab.id === value) ? value as ActionCenterTab : "my-actions";
@@ -84,6 +84,7 @@ function validStatus(value?: string): ActionStatusFilter {
 export default function ActionCenterPage({ initialTab, initialStatus, initialSource }: ActionCenterPageProps) {
   const router = useRouter();
   const actions = useActionStore();
+  const hasLegacyCritical = actions.some((action) => action.priority === "Critical");
   const currentUser = useCurrentUser();
   const adminUsers = useAdminUsers();
   const access = useModuleEntitlements();
@@ -137,7 +138,7 @@ export default function ActionCenterPage({ initialTab, initialStatus, initialSou
           <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} className="pl-9" placeholder="Search actions, source, person..." /></div>
           <FilterSelect value={filters.source} onChange={(value) => updateFilter("source", value as ActionCenterFilters["source"])} ariaLabel="Source module"><SelectItem value="All">All sources</SelectItem>{sourceOptions.map((source) => <SelectItem key={source.id} value={source.id}>{source.label}</SelectItem>)}</FilterSelect>
           <FilterSelect value={filters.status} onChange={(value) => updateFilter("status", value as ActionStatusFilter)} ariaLabel="Status"><SelectItem value="All">All statuses</SelectItem>{STATUS_FILTERS.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item === "Open" ? "Open / Active" : item}</SelectItem>)}</FilterSelect>
-          <FilterSelect value={filters.priority} onChange={(value) => updateFilter("priority", value as ActionCenterFilters["priority"])} ariaLabel="Priority"><SelectItem value="All">All priorities</SelectItem>{PRIORITIES.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</FilterSelect>
+          <FilterSelect value={filters.priority} onChange={(value) => updateFilter("priority", value as ActionCenterFilters["priority"])} ariaLabel="Priority"><SelectItem value="All">All priorities</SelectItem>{PRIORITIES.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}{hasLegacyCritical && <SelectItem value="Critical">Legacy: Critical</SelectItem>}</FilterSelect>
           <Button type="button" variant={moreFilters || activeFilterCount > 3 ? "secondary" : "outline"} onClick={() => setMoreFilters((value) => !value)}><SlidersHorizontal className="size-4" />More filters{activeFilterCount > 0 && <span className="rounded bg-primary px-1.5 text-[10px] text-primary-foreground">{activeFilterCount}</span>}<ChevronDown className={cn("size-3.5 transition-transform", moreFilters && "rotate-180")} /></Button>
         </div>
         {moreFilters && <div className="mt-2 grid min-w-0 gap-2 border-t pt-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">

@@ -31,13 +31,14 @@ function SaveBar({ dirty, onCancel, onSave }: { dirty: boolean; onCancel: () => 
 }
 
 export function PriorityDueDatesPage() {
-  const saved = useActionConfiguration().priorities;
+  const allSaved = useActionConfiguration().priorities;
+  const saved = allSaved.filter((item) => item.id !== "Critical");
   const [draft, setDraft] = useState<ActionPrioritySetting[] | null>(null);
   const values = draft ?? saved;
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string }>();
   const errors = useMemo(() => validateActionPriorities(values), [values]);
   function update(id: ActionPrioritySetting["id"], patch: Partial<ActionPrioritySetting>) { setDraft((items) => (items ?? clone(saved)).map((item) => item.id === id ? { ...item, ...patch } : item)); setFeedback(undefined); }
-  function save() { const result = saveActionPriorities(values); if (result.success) setDraft(null); setFeedback(result.success ? { tone: "success", message: "Priority settings updated." } : { tone: "error", message: result.errors.save ?? "Resolve the highlighted fields before saving." }); }
+  function save() { const result = saveActionPriorities([...allSaved.filter((item) => item.id === "Critical"), ...values]); if (result.success) setDraft(null); setFeedback(result.success ? { tone: "success", message: "Priority settings updated." } : { tone: "error", message: result.errors.save ?? "Resolve the highlighted fields before saving." }); }
   return <AccessPage title="Priority & Due Dates" description="Configure default Action due dates by priority."><>
     {feedback && <OpsFeedback {...feedback} />}
     <div className="grid gap-3">{[...values].sort((a, b) => a.order - b.order).map((item) => <Card key={item.id} className="gap-0"><CardContent className="grid gap-4 p-4 sm:grid-cols-[minmax(140px,.7fr)_140px_minmax(220px,1.4fr)_auto] sm:items-start"><div><Label htmlFor={`${item.id}-label`}>Priority</Label><Input id={`${item.id}-label`} className="mt-2" value={item.label} onChange={(event) => update(item.id, { label: event.target.value })} /><FieldMessage error>{errors[`${item.id}.label`]}</FieldMessage></div><div><Label htmlFor={`${item.id}-offset`}>Default Due Date</Label><div className="relative mt-2"><Input id={`${item.id}-offset`} type="number" min={0} value={item.dueOffsetDays} onChange={(event) => update(item.id, { dueOffsetDays: Number(event.target.value) })} className="pr-12" /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">days</span></div><FieldMessage error>{errors[`${item.id}.dueOffsetDays`]}</FieldMessage></div><div><Label htmlFor={`${item.id}-description`}>Description</Label><Textarea id={`${item.id}-description`} className="mt-2 min-h-10" value={item.description} onChange={(event) => update(item.id, { description: event.target.value })} /></div><div className="flex items-center justify-between gap-3 sm:pt-8"><span className="text-sm">{item.active ? "Active" : "Inactive"}</span><Switch checked={item.active} onCheckedChange={(active) => update(item.id, { active })} aria-label={`${item.label} status`} /></div></CardContent></Card>)}</div>

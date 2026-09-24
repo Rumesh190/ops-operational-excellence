@@ -11,6 +11,7 @@ export type AuditQuestionResponseType = "Compliance" | "Yes / No" | "Text";
 
 export type FiveSAuditStatus =
   | "Draft"
+  | "Scheduled"
   | "In Progress"
   | "Completed";
 
@@ -132,6 +133,10 @@ export interface FiveSAudit {
   maxScore: number;
 
   completionPercentage: number;
+
+  scheduledDate?: string;
+
+  scheduledTime?: string;
 
   startedAt?: string;
 

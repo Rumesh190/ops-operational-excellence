@@ -81,7 +81,7 @@ describe("Red Tag Phase 3B UI contract", () => {
 
   it("keeps original context, status-specific CTAs, legacy fallbacks, and established QR identity in the detail implementation", () => {
     const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-module.tsx"), "utf8");
-    for (const text of ["Original Item Photo", "Item Description", "Quantity", "Location", "Department", "Reason", "Category", "Estimated Value", "Identified By", "Identified Date"]) expect(source).toContain(text);
+    for (const text of ["Before / After Evidence", "Item Description", "Quantity", "Location", "Department", "Reason", "Category", "Estimated Value", "Identified By", "Identified Date"]) expect(source).toContain(text);
     expect(source).toContain("Submit for Review");
     expect(source).toContain("Record Decision");
     expect(source).toContain("tag.review?.reviewerId === user.id");

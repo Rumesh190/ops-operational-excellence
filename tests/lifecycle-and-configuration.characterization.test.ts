@@ -30,11 +30,12 @@ function audit(status: FiveSAudit["status"], completionPercentage: number): Five
 }
 
 describe("lifecycle derivation", () => {
-  it("preserves Draft -> In Progress -> Review -> Completed display order", () => {
-    expect(AUDIT_LIFECYCLE_STAGES).toEqual(["Draft", "In Progress", "Review", "Completed"]);
+  it("preserves Scheduled -> Draft -> In Progress -> Review -> Completed display order", () => {
+    expect(AUDIT_LIFECYCLE_STAGES).toEqual(["Scheduled", "Draft", "In Progress", "Review", "Completed"]);
   });
 
   it.each([
+    ["Scheduled", 0, "Scheduled"],
     ["Draft", 0, "Draft"],
     ["Draft", 1, "In Progress"],
     ["In Progress", 40, "In Progress"],

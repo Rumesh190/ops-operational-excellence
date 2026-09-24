@@ -49,7 +49,29 @@ export type GembaActivityType =
   | "action_created"
   | "red_tag_created"
   | "observation_edited"
+  | "horizontal_deployment_created"
+  | "horizontal_deployment_updated"
+  | "horizontal_deployment_removed"
   | "walk_completed";
+
+export type GembaHorizontalDeploymentStatus = "shared" | "unavailable";
+
+export interface GembaHorizontalDeploymentRecipient {
+  zoneId: string;
+  zoneName: string;
+  leaderUserId?: string;
+  leaderName?: string;
+  notificationStatus: GembaHorizontalDeploymentStatus;
+  notificationId?: string;
+}
+
+export interface GembaHorizontalDeployment {
+  enabled: true;
+  targetZoneIds: string[];
+  recipients: GembaHorizontalDeploymentRecipient[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface GembaVoiceNote {
   id: string;
@@ -88,9 +110,20 @@ export interface GembaObservation {
   createdAt: string;
   updatedAt: string;
   actionId?: string;
+  /** Explicit follow-up decision. Legacy records derive this from actionId/noActionReason. */
+  correctiveActionNeeded?: boolean;
   redTagId?: string;
   improvementId?: string;
   noActionReason?: string;
+  horizontalDeployment?: GembaHorizontalDeployment;
+}
+
+export function resolveGembaCorrectiveActionNeeded(observation: Pick<GembaObservation, "type" | "actionId" | "correctiveActionNeeded" | "noActionReason">): boolean | undefined {
+  if (observation.type === "Positive") return undefined;
+  if (observation.actionId) return true;
+  if (typeof observation.correctiveActionNeeded === "boolean") return observation.correctiveActionNeeded;
+  if (observation.noActionReason) return false;
+  return undefined;
 }
 
 export interface GembaWalk {
@@ -124,4 +157,3 @@ export interface GembaActor {
   id: string;
   name: string;
 }
-

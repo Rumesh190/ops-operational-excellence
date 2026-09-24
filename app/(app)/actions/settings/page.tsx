@@ -22,7 +22,7 @@ const ITEMS = [
     href: "/actions/settings/priority-due-dates",
     icon: Clock3,
     descriptionFn: (cfg: ReturnType<typeof useActionConfiguration>) =>
-      cfg.priorities.map((p) => `${p.label}: ${p.dueOffsetDays}d`).join(" · "),
+      cfg.priorities.filter((p) => p.id !== "Critical").map((p) => `${p.label}: ${p.dueOffsetDays}d`).join(" · "),
   },
   {
     label: "Reminder Rules",

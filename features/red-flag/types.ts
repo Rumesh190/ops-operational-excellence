@@ -1,6 +1,8 @@
 import type { MyActionStatus } from "@/features/five-s/types/my-actions";
 
 export type RedFlagSeverity = "Critical" | "High" | "Medium" | "Low";
+export type ActiveRedFlagSeverity = Exclude<RedFlagSeverity, "Critical">;
+export const ACTIVE_RED_FLAG_SEVERITIES: readonly ActiveRedFlagSeverity[] = ["High", "Medium", "Low"];
 export type RedFlagStatus = "Open" | "Action Created" | "In Progress" | "Awaiting Closure" | "Closed" | "Cancelled";
 export type RedFlagEvidenceGroup = "initial" | "additional" | "closure";
 
@@ -79,7 +81,7 @@ export interface CreateRedFlagInput {
   zone: string;
   location: string;
   machineAsset?: string;
-  severity: RedFlagSeverity;
+  severity: ActiveRedFlagSeverity;
   immediateActionTaken: boolean;
   containmentNote?: string;
   evidence: RedFlagEvidence[];

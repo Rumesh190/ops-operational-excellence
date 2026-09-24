@@ -5,10 +5,13 @@ import { useState } from "react";
 import FiveSAuditList from "./components/FiveSAuditList";
 import FiveSAuditCreate from "./components/FiveSAuditCreate";
 import FiveSAuditExecution from "./components/FiveSAuditExecution";
+import FiveSAuditScheduled from "./components/FiveSAuditScheduled";
 
 import {
   createFiveSAudit,
   deleteFiveSAudit,
+  startScheduledFiveSAudit,
+  updateScheduledFiveSAuditSetup,
   updateFiveSAudit,
   useFiveSAuditStore,
 } from "@/lib/five-s/audit-store";
@@ -207,6 +210,9 @@ export default function FiveSPage() {
     area: string;
     auditor: string;
     dueDate: string;
+    startNow: boolean;
+    scheduledDate?: string;
+    scheduledTime?: string;
   }) {
     const sections = createAuditChecklistSnapshot(createEmptyFiveSSections());
 
@@ -225,8 +231,12 @@ export default function FiveSPage() {
 
         dueDate: input.dueDate,
 
+        scheduledDate: input.scheduledDate,
+
+        scheduledTime: input.scheduledTime,
+
         sections,
-      });
+      }, { startNow: input.startNow });
 
     setIsCreatingAudit(false);
 
@@ -243,6 +253,17 @@ export default function FiveSPage() {
     setIsCreatingAudit(false);
 
     setSelectedAudit(audit);
+  }
+
+  function handleStartScheduledAudit(audit: FiveSAudit) {
+    const startedAudit = startScheduledFiveSAudit(audit.id);
+    if (startedAudit) setSelectedAudit(startedAudit);
+  }
+
+  function handleUpdateScheduledAudit(audit: FiveSAudit, updates: Pick<FiveSAudit, "dueDate" | "scheduledDate" | "scheduledTime">) {
+    const updatedAudit = updateScheduledFiveSAuditSetup(audit.id, updates);
+    if (updatedAudit) setSelectedAudit(updatedAudit);
+    return updatedAudit;
   }
 
   /* =======================================================
@@ -319,6 +340,9 @@ export default function FiveSPage() {
      ======================================================= */
 
   if (selectedAudit) {
+    if (selectedAudit.status === "Scheduled") {
+      return <FiveSAuditScheduled audit={selectedAudit} onBack={handleBackToDashboard} onStart={handleStartScheduledAudit} onUpdate={handleUpdateScheduledAudit} />;
+    }
     return (
       <div className="grid gap-6">
         <FiveSAuditExecution
@@ -348,6 +372,7 @@ export default function FiveSPage() {
         onViewAudit={
           handleViewAudit
         }
+        onStartScheduledAudit={handleStartScheduledAudit}
         onDeleteAudit={
           handleDeleteAudit
         }

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { canCreateImprovement, canViewImprovement } from "./access";
 import { IMPROVEMENT_BENEFIT_TYPES, IMPROVEMENT_PIPELINE, IMPROVEMENT_STATUSES, IMPROVEMENT_STATUS_LABELS } from "./config";
 import { formatImprovementDate, formatImprovementMoney, ImprovementEmpty, improvementAge, ImprovementStatusBadge, ImprovementTabs } from "./components";
+import { improvementOwnerDisplayName } from "./owner";
 import { getContinuousImprovementSummary, useImprovements } from "./store";
 import type { ContinuousImprovement, ImprovementStatus } from "./types";
 
@@ -114,9 +115,10 @@ function ImprovementList({ records, initialStage, canCreate, compactFilters = fa
   const [mode, setMode] = useState<ListMode>("table");
   const now = new Date();
   const filtered = records.filter((item) => {
-    const haystack = `${item.id} ${item.title} ${item.issueDescription} ${item.proposedByName} ${item.ownerName} ${item.zone}`.toLowerCase();
+    const ownerName = improvementOwnerDisplayName(item);
+    const haystack = `${item.id} ${item.title} ${item.issueDescription} ${item.proposedByName} ${ownerName} ${item.zone}`.toLowerCase();
     const itemDate = new Date(item.createdAt);
-    return haystack.includes(search.toLowerCase()) && (stage === "All" || item.status === stage) && (plant === "All" || item.plant === plant) && (zone === "All" || item.zone === zone) && (proposer === "All" || item.proposedByName === proposer) && (owner === "All" || item.ownerName === owner) && (reviewer === "All" || item.reviewerName === reviewer) && (benefit === "All" || item.benefitType === benefit) && (date === "All" || (date === "This Month" ? itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear() : now.getTime() - itemDate.getTime() <= 30 * 86_400_000));
+    return haystack.includes(search.toLowerCase()) && (stage === "All" || item.status === stage) && (plant === "All" || item.plant === plant) && (zone === "All" || item.zone === zone) && (proposer === "All" || item.proposedByName === proposer) && (owner === "All" || ownerName === owner) && (reviewer === "All" || item.reviewerName === reviewer) && (benefit === "All" || item.benefitType === benefit) && (date === "All" || (date === "This Month" ? itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear() : now.getTime() - itemDate.getTime() <= 30 * 86_400_000));
   }).sort((a, b) => sort === "Oldest" ? a.createdAt.localeCompare(b.createdAt) : sort === "Highest Proposed Saving" ? (b.proposedSaving ?? 0) - (a.proposedSaving ?? 0) : sort === "Highest Actual Saving" ? (b.actualSaving ?? 0) - (a.actualSaving ?? 0) : sort === "Longest Open" ? a.createdAt.localeCompare(b.createdAt) : b.createdAt.localeCompare(a.createdAt));
   const options = (values: string[]) => [...new Set(values)].sort();
   return <div className="grid gap-3">

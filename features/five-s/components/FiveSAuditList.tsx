@@ -11,6 +11,7 @@ import {
   Eye,
   FileBarChart,
   Filter,
+  Play,
   Plus,
   RefreshCcw,
   Search,
@@ -59,6 +60,10 @@ interface FiveSAuditListProps {
   onStartAudit?: () => void;
 
   onViewAudit?: (
+    audit: FiveSAudit
+  ) => void;
+
+  onStartScheduledAudit?: (
     audit: FiveSAudit
   ) => void;
 
@@ -130,13 +135,12 @@ function getLifecycleStatusVariant(stage: AuditLifecycleStage) {
 function getCreatedDate(
   audit: FiveSAudit
 ): Date | null {
-  if (!audit.startedAt) {
+  const value = audit.status === "Scheduled" ? audit.scheduledDate : audit.startedAt;
+  if (!value) {
     return null;
   }
 
-  const date = new Date(
-    `${audit.startedAt}T00:00:00`
-  );
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
 
   if (
     Number.isNaN(
@@ -172,6 +176,12 @@ function formatCreatedDate(
       year: "numeric",
     }
   ).format(date);
+}
+
+function formatAuditTiming(audit: FiveSAudit, locale: string): string {
+  const date = formatCreatedDate(audit, locale);
+  if (audit.status !== "Scheduled") return date;
+  return `${date}${audit.scheduledTime ? ` · ${audit.scheduledTime}` : ""}`;
 }
 
 /* =========================================================
@@ -250,6 +260,7 @@ export default function FiveSAuditList({
   audits,
   onStartAudit,
   onViewAudit,
+  onStartScheduledAudit,
   onDeleteAudit,
   nav,
 }: FiveSAuditListProps) {
@@ -450,6 +461,11 @@ export default function FiveSAuditList({
     event.stopPropagation();
 
     onViewAudit?.(audit);
+  }
+
+  function handleStartScheduled(event: MouseEvent<HTMLButtonElement>, audit: FiveSAudit) {
+    event.stopPropagation();
+    onStartScheduledAudit?.(audit);
   }
 
   function handleViewReport(
@@ -789,8 +805,8 @@ export default function FiveSAuditList({
           const score = audit.maxScore > 0 ? Math.round((audit.score / audit.maxScore) * 100) : 0;
           return <article key={audit.id} onClick={() => handleRowClick(audit)} className="min-w-0 rounded-xl border bg-card p-4 shadow-sm active:bg-muted/40">
             <div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0 flex-1"><h2 className="break-words text-base font-semibold leading-6">{audit.title}</h2><p className="mt-1 break-words text-sm text-muted-foreground">{audit.area} · {audit.plant}</p></div><Badge variant={getLifecycleStatusVariant(getAuditLifecycleStage(audit))}>{getAuditLifecycleStage(audit)}</Badge></div>
-            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-y py-3 text-sm"><div className="min-w-0"><dt className="text-xs text-muted-foreground">{t("audit.auditor")}</dt><dd className="mt-1 break-words font-medium">{audit.auditor}</dd></div><div><dt className="text-xs text-muted-foreground">{t("audit.score")}</dt><dd className="mt-1 font-semibold">{score}%</dd></div><div><dt className="text-xs text-muted-foreground">{t("common.progress")}</dt><dd className="mt-1 font-medium">{audit.completionPercentage}%</dd></div><div><dt className="text-xs text-muted-foreground">{t("common.created")}</dt><dd className="mt-1 font-medium">{formatCreatedDate(audit, locale)}</dd></div></dl>
-            <div className="mt-3 grid grid-cols-2 gap-2"><Button variant="outline" onClick={(event) => handleView(event, audit)}><Eye className="size-4" /> {t("common.view")}</Button>{audit.status === "Completed" ? <Button onClick={(event) => handleViewReport(event, audit)}><FileBarChart className="size-4" /> {t("common.report")}</Button> : <Button onClick={(event) => handleView(event, audit)}>{t("common.continue")}</Button>}</div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-y py-3 text-sm"><div className="min-w-0"><dt className="text-xs text-muted-foreground">{t("audit.auditor")}</dt><dd className="mt-1 break-words font-medium">{audit.auditor}</dd></div><div><dt className="text-xs text-muted-foreground">{t("audit.score")}</dt><dd className="mt-1 font-semibold">{score}%</dd></div><div><dt className="text-xs text-muted-foreground">{t("common.progress")}</dt><dd className="mt-1 font-medium">{audit.completionPercentage}%</dd></div><div><dt className="text-xs text-muted-foreground">{audit.status === "Scheduled" ? "Scheduled" : t("common.created")}</dt><dd className="mt-1 font-medium">{formatAuditTiming(audit, locale)}</dd></div></dl>
+            <div className="mt-3 grid grid-cols-2 gap-2"><Button variant="outline" onClick={(event) => handleView(event, audit)}><Eye className="size-4" /> {t("common.view")}</Button>{audit.status === "Completed" ? <Button onClick={(event) => handleViewReport(event, audit)}><FileBarChart className="size-4" /> {t("common.report")}</Button> : audit.status === "Scheduled" ? <Button onClick={(event) => handleStartScheduled(event, audit)}><Play className="size-4" />Start Audit</Button> : <Button onClick={(event) => handleView(event, audit)}>{t("common.continue")}</Button>}</div>
           </article>;
         })}
       </div>
@@ -829,7 +845,7 @@ export default function FiveSAuditList({
                   </th>
 
                   <th className="h-11 px-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    {t("common.created")}
+                    Timing
                   </th>
 
                   <th className="h-11 px-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
@@ -938,7 +954,7 @@ export default function FiveSAuditList({
 
                         <td className="px-4 py-3.5 align-middle">
                           <p className="whitespace-nowrap text-sm text-foreground">
-                            {formatCreatedDate(
+                            {formatAuditTiming(
                               audit,
                               locale
                             )}
@@ -1022,6 +1038,10 @@ export default function FiveSAuditList({
                             >
                               <Eye className="size-4" />
                             </Button>
+
+                            {audit.status === "Scheduled" && onStartScheduledAudit && (
+                              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Start ${audit.title}`} title="Start Audit" onClick={(event) => handleStartScheduled(event, audit)} className="text-primary hover:text-primary"><Play className="size-4" /></Button>
+                            )}
 
                             {audit.status === "Completed" && (
                               <Button

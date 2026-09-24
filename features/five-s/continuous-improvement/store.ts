@@ -133,8 +133,8 @@ function normalizeRecord(value: ContinuousImprovement): ContinuousImprovement {
     expectedBenefit: value.expectedBenefit ?? "Improve the current workplace condition.",
     benefitType: value.benefitType ?? (typeof value.proposedSaving === "number" && value.proposedSaving > 0 ? "Cost Saving" : "Other"),
     proposedSaving: value.proposedSaving ?? 0,
-    ownerId: value.ownerId ?? value.proposedById,
-    ownerName: value.ownerName ?? value.proposedByName,
+    ownerId: value.ownerId ?? "",
+    ownerName: getAdminUser(value.ownerId)?.name ?? value.ownerName ?? "Owner unavailable",
     memberIds,
     memberNames,
     participants,
@@ -215,6 +215,10 @@ export function createImprovement(input: CreateImprovementInput, user: DemoUser,
   const permittedZones = new Set(adminUser?.zoneMemberships.map((membership) => membership.zone) ?? []);
   if (!zone || !adminUser || !adminUser.permissions.includes("ci.create") || user.isSuperAdmin || (!hasBroadScope && !permittedZones.has(zone.name))) throw new Error("Only Zone Members can create improvements.");
   const allowed = new Set(zone.members.map((member) => member.id));
+  const ownerId = input.ownerId ?? user.id;
+  const owner = getAdminUser(ownerId);
+  const ownerInScope = owner?.roles.includes("Admin") || owner?.zoneMemberships.some((membership) => membership.zone === zone.name);
+  if (!owner || owner.status !== "Active" || owner.plant !== (input.plant ?? user.plant) || !owner.permissions.includes("ci.implement") || !ownerInScope) throw new Error("Select an active CI Owner for this Zone.");
   if (input.memberIds.some((id) => !allowed.has(id))) throw new Error("Team members must belong to your Zone.");
   if (!input.title.trim() || !input.issueDescription.trim() || input.estimatedTime <= 0) throw new Error("Proposal requirements are not met.");
   const now = new Date().toISOString();
@@ -225,7 +229,7 @@ export function createImprovement(input: CreateImprovementInput, user: DemoUser,
   const item: ContinuousImprovement = {
     id, plant: input.plant ?? user.plant, zone: zone.name, zoneCode: zone.code, zoneLeaderId: zone.leaderId, zoneLeaderName: zone.leader,
     title: input.title.trim(), issueDescription: input.issueDescription.trim(), proposedImprovement: input.proposedImprovement?.trim() || "Implement the proposed workplace improvement.", expectedBenefit: input.expectedBenefit?.trim() || "Improve the current workplace condition.", benefitType: input.benefitType ?? (typeof input.proposedSaving === "number" && input.proposedSaving > 0 ? "Cost Saving" : "Other"), proposedSaving: input.proposedSaving ?? 0, estimatedTime: input.estimatedTime, estimatedTimeUnit: input.estimatedTimeUnit,
-    proposedById: user.id, proposedByName: user.name, ownerId: user.id, ownerName: user.name, memberIds, memberNames, participants: memberIds.map((memberId, index) => ({ id: memberId, name: memberNames[index] })),
+    proposedById: user.id, proposedByName: user.name, ownerId: owner.id, ownerName: owner.name, memberIds, memberNames, participants: memberIds.map((memberId, index) => ({ id: memberId, name: memberNames[index] })),
     status: saveAsDraft ? "draft" : "submitted", reviewerId: zone.leaderId, reviewerName: zone.leader, actionIds: [], existingPhotos: beforeEvidence, evidence: [], beforeEvidence, afterEvidence: [], createdAt: now, updatedAt: now, submittedAt: saveAsDraft ? undefined : now,
     timeline: saveAsDraft ? [event("created", actor(user))] : [event("created", actor(user)), event("submitted", actor(user))],
   };
@@ -239,10 +243,14 @@ export function updateImprovementProposal(id: string, input: ProposalUpdateInput
   if (!current || !canEditProposal(getAdminUser(user.id), user, current)) throw new Error("This proposal cannot be edited.");
   const zone = getFiveSZoneConfiguration(current.zone)!;
   const allowed = new Set(zone.members.map((member) => member.id));
+  const ownerId = input.ownerId ?? current.ownerId;
+  const owner = getAdminUser(ownerId);
+  const ownerInScope = owner?.roles.includes("Admin") || owner?.zoneMemberships.some((membership) => membership.zone === current.zone);
+  if (!owner || owner.status !== "Active" || owner.plant !== current.plant || !owner.permissions.includes("ci.implement") || !ownerInScope) throw new Error("Select an active CI Owner for this Zone.");
   if (input.memberIds.some((memberId) => !allowed.has(memberId)) || !input.title.trim() || !input.issueDescription.trim() || !input.proposedImprovement.trim() || !input.expectedBenefit.trim() || input.estimatedTime <= 0) throw new Error("Proposal requirements are not met.");
   const memberIds = [...new Set(input.memberIds)];
   const memberNames = memberIds.map((memberId) => zone.members.find((member) => member.id === memberId)?.name ?? memberId);
-  return update(id, (item) => ({ ...item, ...input, title: input.title.trim(), issueDescription: input.issueDescription.trim(), proposedImprovement: input.proposedImprovement.trim(), expectedBenefit: input.expectedBenefit.trim(), proposedSaving: input.proposedSaving ?? 0, memberIds, memberNames, participants: memberIds.map((memberId, index) => ({ id: memberId, name: memberNames[index] })), existingPhotos: input.beforeEvidence, beforeEvidence: input.beforeEvidence, updatedAt: new Date().toISOString(), timeline: [...item.timeline, event("updated", actor(user), "Proposal details updated")] }));
+  return update(id, (item) => ({ ...item, ...input, ownerId: owner.id, ownerName: owner.name, title: input.title.trim(), issueDescription: input.issueDescription.trim(), proposedImprovement: input.proposedImprovement.trim(), expectedBenefit: input.expectedBenefit.trim(), proposedSaving: input.proposedSaving ?? 0, memberIds, memberNames, participants: memberIds.map((memberId, index) => ({ id: memberId, name: memberNames[index] })), existingPhotos: input.beforeEvidence, beforeEvidence: input.beforeEvidence, updatedAt: new Date().toISOString(), timeline: [...item.timeline, ...(item.ownerId !== owner.id ? [event("owner_changed", actor(user), `${item.ownerName || "Owner unavailable"} → ${owner.name}`)] : []), event("updated", actor(user), "Proposal details updated")] }));
 }
 
 export function submitImprovement(id: string, user: DemoUser) {
@@ -376,5 +384,5 @@ function notifyReviewer(item: ContinuousImprovement, title: string, message: str
 }
 
 function notifyParticipants(item: ContinuousImprovement, title: string, message: string) {
-  for (const recipientUserId of new Set([item.proposedById, item.ownerId, ...item.memberIds])) createNotification({ recipientUserId, title, message, href: `/continuous-improvement/${encodeURIComponent(item.id)}` });
+  for (const recipientUserId of new Set([item.proposedById, item.ownerId, ...item.memberIds].filter(Boolean))) createNotification({ recipientUserId, title, message, href: `/continuous-improvement/${encodeURIComponent(item.id)}` });
 }

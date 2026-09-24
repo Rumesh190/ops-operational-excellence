@@ -54,7 +54,7 @@ describe("5S Red Tag identity and compatibility", () => {
     const localStorage = storage(); vi.stubGlobal("window", { localStorage, alert: vi.fn() }); vi.stubGlobal("localStorage", localStorage); vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
     const store = await import("@/features/five-s/red-tag/store");
     const actor = DEMO_USERS.auditor;
-    const tag = store.createRedTag({ plant: actor.plant, zone: "Zone A", section: "Production", itemName: "Fixture", quantity: 1, reason: "Undefined Items", remarks: "Unused", requiredAction: "Remove", responsiblePersonId: "USR-SIVA-KUMAR", responsiblePersonName: "Siva Kumar", targetDate: "2026-09-20", createdById: actor.id, createdByName: actor.name }, actor);
+    const tag = store.createRedTag({ plant: actor.plant, zone: "Zone A", section: "Production", itemName: "Fixture", quantity: 1, reason: "Undefined Items", remarks: "Unused", imageUrl: "data:image/jpeg;base64,before", requiredAction: "Remove", responsiblePersonId: "USR-SIVA-KUMAR", responsiblePersonName: "Siva Kumar", targetDate: "2026-09-20", createdById: actor.id, createdByName: actor.name }, actor);
     store.linkRedTagAction(tag.id, "ACT-RT-001", actor);
     const action = (status: MyAction["status"]): MyAction => ({ id: "ACT-RT-001", title: "Remove fixture", description: "Remove", source: "Red Tag", sourceTitle: tag.id, sourceModule: "redTag", sourceId: tag.id, plant: tag.plant, department: "Production", area: tag.zone, assignedTo: "Siva Kumar", status, priority: "Medium", dueDate: tag.targetDate, createdAt: "2026-09-16", evidence: [] });
     store.reconcileRedTagActions([action("In Progress")]);
@@ -68,7 +68,7 @@ describe("5S Red Tag identity and compatibility", () => {
     const localStorage = storage(); vi.stubGlobal("window", { localStorage, alert: vi.fn() }); vi.stubGlobal("localStorage", localStorage); vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
     const store = await import("@/features/five-s/red-tag/store");
     const actor = DEMO_USERS.auditor;
-    const tag = store.createRedTag({ plant: actor.plant, zone: "Zone A", section: "Production", itemName: "Fixture", quantity: 1, reason: "Undefined Items", remarks: "Unused", requiredAction: "Remove", responsiblePersonId: "USR-SIVA-KUMAR", responsiblePersonName: "Siva Kumar", targetDate: "2026-09-20", createdById: actor.id, createdByName: actor.name }, actor);
+    const tag = store.createRedTag({ plant: actor.plant, zone: "Zone A", section: "Production", itemName: "Fixture", quantity: 1, reason: "Undefined Items", remarks: "Unused", imageUrl: "data:image/jpeg;base64,before", requiredAction: "Remove", responsiblePersonId: "USR-SIVA-KUMAR", responsiblePersonName: "Siva Kumar", targetDate: "2026-09-20", createdById: actor.id, createdByName: actor.name }, actor);
     const baseAction: MyAction = { id: "ACT-RT-002", title: "Remove fixture", description: "Remove", source: "Red Tag", sourceTitle: tag.id, sourceModule: "redTag", sourceId: tag.id, plant: tag.plant, department: "Production", area: tag.zone, assignedTo: "Siva Kumar", status: "Completed", priority: "Medium", dueDate: tag.targetDate, createdAt: "2026-09-16", evidence: [] };
     store.linkRedTagAction(tag.id, baseAction.id, actor); store.reconcileRedTagActions([baseAction]);
     expect(store.verifyRedTag(tag.id, { ...baseAction, status: "In Progress" }, { disposition: "Dispose", verificationRemark: "Cleared" }, actor)).toBeUndefined();

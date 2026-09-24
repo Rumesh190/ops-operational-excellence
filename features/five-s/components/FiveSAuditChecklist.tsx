@@ -2495,8 +2495,7 @@ function FiveSAuditExecution({
                                 .value as
                                 | "Low"
                                 | "Medium"
-                                | "High"
-                                | "Critical",
+                                | "High",
                           }
                         )
                       }
@@ -2514,9 +2513,6 @@ function FiveSAuditExecution({
                         High
                       </option>
 
-                      <option value="Critical">
-                        Critical
-                      </option>
                     </select>
                   </div>
                 </div>

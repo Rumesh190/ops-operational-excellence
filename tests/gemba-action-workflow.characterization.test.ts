@@ -116,7 +116,8 @@ describe("Gemba → canonical Action traceability", () => {
   });
 
   it("does not offer or persist Why no Action when an observation already has a linked Action", () => {
-    expect(walkSource).toContain('!observation?.actionId && <Field label="Why no Action? (optional)"');
-    expect(walkSource).toContain('createAction || Boolean(observation?.actionId) ? undefined');
+    expect(walkSource).toContain('correctiveActionNeeded === false && !observation?.actionId && <Field label="Reason corrective action is not required (optional)"');
+    expect(walkSource).toContain('correctiveActionNeeded: type === "Positive" ? undefined : observation?.actionId ? true : correctiveActionNeeded');
+    expect(walkSource).toContain('correctiveActionNeeded === false && !observation?.actionId ? noActionReason.trim() || undefined : undefined');
   });
 });

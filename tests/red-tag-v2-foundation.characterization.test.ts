@@ -48,6 +48,7 @@ function createTag(store: Awaited<ReturnType<typeof redTagStore>>["store"]) {
     quantity: 1,
     reason: "Undefined Items",
     remarks: "No longer used",
+    imageUrl: "data:image/jpeg;base64,before",
     requiredAction: "Review for disposition",
     responsiblePersonId: reviewer.id,
     responsiblePersonName: reviewer.name,
@@ -93,7 +94,7 @@ describe("Red Tag V2 lifecycle commands", () => {
     expect(store.startRedTagDisposition(tag.id, { responsiblePersonId: "", responsiblePersonName: "", targetDate: "" }, reviewer)).toBeUndefined();
     expect(store.startRedTagDisposition(tag.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-09-30" }, reviewer)).toMatchObject({ status: "Disposition In Progress", dispositionDetails: { decision: "scrap", responsiblePersonId: reviewer.id } });
     expect(store.verifyRedTagDisposition(tag.id, { passed: true, details: "Too early" }, reviewer)).toBeUndefined();
-    expect(store.completeRedTagDisposition(tag.id, evidence, reviewer)).toMatchObject({ status: "Awaiting Verification", dispositionDetails: { completedByUserId: reviewer.id } });
+    expect(store.completeRedTagDisposition(tag.id, { evidence, completionNotes: "Disposed as approved", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Awaiting Verification", dispositionDetails: { completedByUserId: reviewer.id } });
 
     expect(store.verifyRedTagDisposition(tag.id, { passed: false, details: "Item remains in area" }, reviewer)).toMatchObject({ status: "Awaiting Verification", closure: { verificationResult: "Failed" } });
     expect(store.closeRedTag(tag.id, reviewer)).toBeUndefined();

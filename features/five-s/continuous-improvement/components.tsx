@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- CI evidence includes dynamic camera uploads and existing local evidence fixtures. */
 
 import { useRef, useState } from "react";
-import { Camera, CheckCircle2, Clock3, FileEdit, ImageIcon, Link2, PauseCircle, PlayCircle, RotateCcw, Send, ShieldCheck, Trash2, Upload, XCircle } from "lucide-react";
+import { Camera, CheckCircle2, Clock3, Eye, FileEdit, ImageIcon, Link2, PauseCircle, PlayCircle, RefreshCw, RotateCcw, Send, ShieldCheck, Trash2, Upload, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { OpsEmptyState } from "@/components/ops/ops-empty-state";
 import { OpsEvidenceViewer } from "@/components/ops/ops-evidence-viewer";
@@ -28,23 +28,26 @@ export function ImprovementTabs({ tabs, active, onChange, label = "Continuous Im
 export function ImprovementEvidencePicker({ items, onChange, uploadedBy, label = "Upload images", required = false }: { items: ImprovementEvidence[]; onChange: (items: ImprovementEvidence[]) => void; uploadedBy: string; label?: string; required?: boolean }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const replaceRef = useRef<HTMLInputElement>(null);
+  const replaceTargetRef = useRef<string | null>(null);
+  const [preview, setPreview] = useState<ImprovementEvidence | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function selected(list: FileList | null) {
+  async function selected(list: FileList | null, replaceId?: string) {
     if (!list) return;
     const files = Array.from(list);
     setError("");
     try {
-      validateEvidenceSelection(files, items.length);
+      validateEvidenceSelection(files, replaceId ? Math.max(0, items.length - 1) : items.length);
       setBusy(true);
       const next: ImprovementEvidence[] = [];
       for (const file of files) {
         const optimized = await optimizeEvidenceImage(file);
         next.push({ id: `CI-EV-${crypto.randomUUID()}`, name: file.name, url: optimized.dataUrl, mimeType: file.type, caption: caption.trim() || undefined, uploadedAt: new Date().toISOString(), uploadedBy });
       }
-      onChange([...items, ...next]);
+      onChange(replaceId && next[0] ? items.map((item) => item.id === replaceId ? { ...next[0], id: item.id } : item) : [...items, ...next]);
       setCaption("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to process this image.");
@@ -52,15 +55,18 @@ export function ImprovementEvidencePicker({ items, onChange, uploadedBy, label =
       setBusy(false);
       if (uploadRef.current) uploadRef.current.value = "";
       if (cameraRef.current) cameraRef.current.value = "";
+      if (replaceRef.current) replaceRef.current.value = "";
     }
   }
 
   return <div className="grid gap-3">
     <input ref={uploadRef} type="file" accept="image/*" multiple className="sr-only" onChange={(event) => void selected(event.target.files)} />
     <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void selected(event.target.files)} />
-    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><Input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Short caption for selected photos" /><Button type="button" variant="outline" className="min-h-11" onClick={() => cameraRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Camera</Button><Button type="button" variant="outline" className="min-h-11" onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : label}</Button></div>
+    <input ref={replaceRef} type="file" accept="image/*" className="sr-only" onChange={(event) => { void selected(event.target.files, replaceTargetRef.current ?? undefined); replaceTargetRef.current = null; }} />
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><Input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Short caption for selected photos" /><Button type="button" variant="outline" className="min-h-11" onClick={() => cameraRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button><Button type="button" variant="outline" className="min-h-11" aria-label={`${label}: Upload Photo`} onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : "Upload Photo"}</Button></div>
     <p className={cn("text-[11px]", error ? "text-destructive" : "text-muted-foreground")}>{error || `${required ? "Required · " : "Optional · "}${items.length}/${MAX_EVIDENCE_IMAGES} photos · JPG, PNG, or camera capture`}</p>
-    {items.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">{items.map((item) => <figure key={item.id} className="group relative overflow-hidden rounded-lg border bg-muted/25"><img src={item.url} alt={item.caption || item.name} className="aspect-[4/3] w-full object-cover" /><button type="button" onClick={() => onChange(items.filter((candidate) => candidate.id !== item.id))} aria-label={`Remove ${item.name}`} className="absolute right-1 top-1 grid size-8 place-items-center rounded-md bg-black/70 text-white outline-none hover:bg-black focus-visible:ring-2 focus-visible:ring-white"><Trash2 className="size-3.5" /></button><figcaption className="truncate px-2 py-1.5 text-[10px] text-muted-foreground">{item.caption || item.name}</figcaption></figure>)}</div>}
+    {items.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">{items.map((item) => <figure key={item.id} className="overflow-hidden rounded-lg border bg-muted/25"><button type="button" onClick={() => setPreview(item)} className="block w-full"><img src={item.url} alt={item.caption || item.name} className="aspect-[4/3] w-full object-cover" /></button><figcaption className="truncate px-2 py-1.5 text-[10px] text-muted-foreground">{item.caption || item.name}</figcaption><div className="grid grid-cols-3 border-t bg-background"><button type="button" onClick={() => setPreview(item)} className="grid min-h-9 place-items-center" aria-label={`View ${item.name}`}><Eye className="size-3.5" /></button><button type="button" onClick={() => { replaceTargetRef.current = item.id; replaceRef.current?.click(); }} className="grid min-h-9 place-items-center border-x" aria-label={`Replace ${item.name}`}><RefreshCw className="size-3.5" /></button><button type="button" onClick={() => onChange(items.filter((candidate) => candidate.id !== item.id))} className="grid min-h-9 place-items-center text-destructive" aria-label={`Remove ${item.name}`}><Trash2 className="size-3.5" /></button></div></figure>)}</div>}
+    <OpsEvidenceViewer open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)} src={preview?.url} title={preview?.name} description={preview?.caption || "Continuous Improvement evidence"} alt={preview?.caption || preview?.name} />
   </div>;
 }
 
@@ -78,7 +84,7 @@ function EvidencePanel({ label, evidence, description, tone, onPreview }: { labe
 }
 
 const EVENT_CONFIG: Record<ImprovementEvent["type"], { label: string; icon: typeof Clock3 }> = {
-  created: { label: "Draft created", icon: FileEdit }, updated: { label: "Proposal updated", icon: FileEdit }, submitted: { label: "Submitted", icon: Send }, review_started: { label: "Review started", icon: ShieldCheck }, approved: { label: "Approved", icon: CheckCircle2 }, rejected: { label: "Rejected", icon: XCircle }, on_hold: { label: "Placed on hold", icon: PauseCircle }, review_resumed: { label: "Review resumed", icon: RotateCcw }, started: { label: "Implementation started", icon: PlayCircle }, progress_updated: { label: "Implementation updated", icon: FileEdit }, action_created: { label: "Action created", icon: Link2 }, evidence_uploaded: { label: "Evidence uploaded", icon: Camera }, completion_submitted: { label: "Completion submitted", icon: Send }, completion_returned: { label: "Returned for changes", icon: RotateCcw }, completion_resubmitted: { label: "Completion resubmitted", icon: Send }, completed: { label: "Completed", icon: CheckCircle2 },
+  created: { label: "Draft created", icon: FileEdit }, updated: { label: "Proposal updated", icon: FileEdit }, owner_changed: { label: "Owner changed", icon: FileEdit }, submitted: { label: "Submitted", icon: Send }, review_started: { label: "Review started", icon: ShieldCheck }, approved: { label: "Approved", icon: CheckCircle2 }, rejected: { label: "Rejected", icon: XCircle }, on_hold: { label: "Placed on hold", icon: PauseCircle }, review_resumed: { label: "Review resumed", icon: RotateCcw }, started: { label: "Implementation started", icon: PlayCircle }, progress_updated: { label: "Implementation updated", icon: FileEdit }, action_created: { label: "Action created", icon: Link2 }, evidence_uploaded: { label: "Evidence uploaded", icon: Camera }, completion_submitted: { label: "Completion submitted", icon: Send }, completion_returned: { label: "Returned for changes", icon: RotateCcw }, completion_resubmitted: { label: "Completion resubmitted", icon: Send }, completed: { label: "Completed", icon: CheckCircle2 },
 };
 
 export function ImprovementTimeline({ activity }: { activity: ImprovementEvent[] }) {

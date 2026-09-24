@@ -21,6 +21,7 @@ import { useCurrentUser } from "@/lib/current-user";
 import { createImprovement } from "@/features/five-s/continuous-improvement/store";
 import type { ImprovementBenefitType, TimeUnit } from "@/features/five-s/continuous-improvement/types";
 import { IMPROVEMENT_BENEFIT_TYPES } from "@/features/five-s/continuous-improvement/config";
+import { selectableImprovementOwners } from "@/features/five-s/continuous-improvement/owner";
 import { canCreateImprovement } from "@/features/five-s/continuous-improvement/access";
 import { useAdminUsers } from "@/features/five-s/administration/store";
 import type { GembaObservation } from "@/features/gemba/types";
@@ -61,7 +62,9 @@ export function CreateCIFromGembaDialog({
 }: CreateCIFromGembaProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  const adminUser = useAdminUsers().find((u) => u.id === currentUser.id);
+  const adminUsers = useAdminUsers();
+  const adminUser = adminUsers.find((u) => u.id === currentUser.id);
+  const ownerOptions = selectableImprovementOwners(adminUsers, plant, zone);
   
   // Prefill from Gemba observation
   const [title, setTitle] = useState(observation.title || "");
@@ -74,6 +77,7 @@ export function CreateCIFromGembaDialog({
   const [proposedSaving, setProposedSaving] = useState("");
   const [estimatedTime, setEstimatedTime] = useState("5");
   const [estimatedTimeUnit, setEstimatedTimeUnit] = useState<TimeUnit>("Days");
+  const [ownerId, setOwnerId] = useState(ownerOptions.some((owner) => owner.id === currentUser.id) ? currentUser.id : ownerOptions[0]?.id ?? "");
   
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -116,6 +120,11 @@ export function CreateCIFromGembaDialog({
       return;
     }
 
+    if (!ownerOptions.some((owner) => owner.id === ownerId)) {
+      setError("Select an active CI Owner for this Zone.");
+      return;
+    }
+
     setCreating(true);
     setError("");
 
@@ -130,6 +139,7 @@ export function CreateCIFromGembaDialog({
         proposedSaving: proposedSaving.trim() ? Number(proposedSaving) : undefined,
         estimatedTime: Number(estimatedTime),
         estimatedTimeUnit,
+        ownerId,
         plant,
         zone,
         memberIds: [],
@@ -240,6 +250,12 @@ export function CreateCIFromGembaDialog({
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Owner *">
+              <Select value={ownerId} onValueChange={(value) => setOwnerId(value ?? "")} disabled={creating}>
+                <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+                <SelectContent>{ownerOptions.map((owner) => <SelectItem key={owner.id} value={owner.id}>{owner.name} · {owner.zoneMemberships.find((membership) => membership.zone === zone)?.responsibility ?? "Admin"}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             {/* Benefit Type - CI-specific field */}
             <Field label="Benefit Type *">
               <Select

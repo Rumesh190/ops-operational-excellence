@@ -38,6 +38,7 @@ export interface ImprovementEvidence {
 export type ImprovementEventType =
   | "created"
   | "updated"
+  | "owner_changed"
   | "submitted"
   | "review_started"
   | "approved"
@@ -141,6 +142,8 @@ export interface CreateImprovementInput {
   proposedSaving?: number;
   estimatedTime: number;
   estimatedTimeUnit: TimeUnit;
+  /** Optional for legacy callers; current creation surfaces always provide an explicit canonical user ID. */
+  ownerId?: string;
   memberIds: string[];
   existingPhotos?: ImprovementEvidence[];
   beforeEvidence?: ImprovementEvidence[];
@@ -155,6 +158,7 @@ export interface ProposalUpdateInput {
   proposedSaving?: number;
   estimatedTime: number;
   estimatedTimeUnit: TimeUnit;
+  ownerId?: string;
   memberIds: string[];
   beforeEvidence: ImprovementEvidence[];
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, Info, LoaderCircle, LockKeyhole } from "lucide-react";
 
-import { getNextFiveSAuditTitle } from "@/lib/five-s/audit-store";
+import { getNextFiveSAuditTitle, validateFiveSAuditSchedule } from "@/lib/five-s/audit-store";
 import { useCurrentUser } from "@/lib/current-user";
 import {
   canAuditZone,
@@ -39,6 +39,9 @@ interface FiveSAuditCreateProps {
     area: string;
     auditor: string;
     dueDate: string;
+    startNow: boolean;
+    scheduledDate?: string;
+    scheduledTime?: string;
   }) => void;
 }
 
@@ -118,6 +121,10 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
 
   const [zone, setZone] = useState<string>("");
   const [dueDate, setDueDate] = useState(defaultDueDate);
+  const [mode, setMode] = useState<"now" | "schedule">("now");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [scheduleError, setScheduleError] = useState("");
   const [starting, setStarting] = useState(false);
 
   const selectedZone = zoneConfiguration.find((item) => item.name === zone);
@@ -137,14 +144,17 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
   }).format(createdAt);
 
   const ownZoneSelected = Boolean(zone && !canAuditZone({ primaryZone: currentZone }, zone));
-  const isValid = Boolean(selectedZone && generatedAuditTitle && dueDate >= today && !ownZoneSelected);
+  const scheduleIsValid = mode === "now" || !validateFiveSAuditSchedule(scheduledDate, scheduledTime, createdAt);
+  const isValid = Boolean(selectedZone && generatedAuditTitle && dueDate >= today && !ownZoneSelected && scheduleIsValid);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isValid || !selectedZone || starting || !canAuditZone({ primaryZone: currentZone }, selectedZone.name)) return;
+    const nextScheduleError = mode === "schedule" ? validateFiveSAuditSchedule(scheduledDate, scheduledTime, new Date()) : null;
+    setScheduleError(nextScheduleError ?? "");
+    if (nextScheduleError || !isValid || !selectedZone || starting || !canAuditZone({ primaryZone: currentZone }, selectedZone.name)) return;
 
     setStarting(true);
-    window.setTimeout(() => onStart({ title: generatedAuditTitle, plant: currentPlant, department: selectedZone.department, area: selectedZone.name, auditor: currentUser.name, dueDate }), 220);
+    window.setTimeout(() => onStart({ title: generatedAuditTitle, plant: currentPlant, department: selectedZone.department, area: selectedZone.name, auditor: currentUser.name, dueDate, startNow: mode === "now", scheduledDate: mode === "schedule" ? scheduledDate : undefined, scheduledTime: mode === "schedule" ? scheduledTime : undefined }), 220);
   }
 
   return (
@@ -165,7 +175,7 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
               <Button type="button" variant="outline" onClick={onBack}>{t("common.cancel")}</Button>
               <Button type="submit" form="five-s-audit-form" disabled={!isValid || starting}>
                 {starting ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" /> : <Check className="size-4" />}
-                {starting ? t("audit.starting") : t("audit.startAction")}
+                {starting ? t("audit.starting") : mode === "schedule" ? "Schedule Audit" : t("audit.startAction")}
               </Button>
             </>
           }
@@ -209,6 +219,20 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
               </section>
 
               <section className="mt-5 border-t border-border/65 pt-5">
+                <h2 className="text-sm font-semibold">When</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Start the audit now or save it for a planned time.</p>
+                <div className="mt-4 grid max-w-xl grid-cols-2 gap-2">
+                  <button type="button" onClick={() => { setMode("now"); setScheduleError(""); }} className={`min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${mode === "now" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30"}`}>Start now</button>
+                  <button type="button" onClick={() => setMode("schedule")} className={`min-h-11 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${mode === "schedule" ? "border-primary bg-primary/[0.08] text-primary" : "bg-background hover:bg-muted/30"}`}>Schedule</button>
+                </div>
+                {mode === "schedule" && <div className="mt-4 grid gap-4 md:max-w-xl md:grid-cols-2">
+                  <div className="grid gap-2"><Label htmlFor="five-s-scheduled-date">Date *</Label><Input id="five-s-scheduled-date" type="date" min={today} value={scheduledDate} onChange={(event) => { setScheduledDate(event.target.value); setScheduleError(""); }} className="h-11 min-h-11 px-3" /></div>
+                  <div className="grid gap-2"><Label htmlFor="five-s-scheduled-time">Time *</Label><Input id="five-s-scheduled-time" type="time" value={scheduledTime} onChange={(event) => { setScheduledTime(event.target.value); setScheduleError(""); }} className="h-11 min-h-11 px-3" /></div>
+                </div>}
+                {scheduleError && <p role="alert" className="mt-3 text-sm text-destructive">{scheduleError}</p>}
+              </section>
+
+              <section className="mt-5 border-t border-border/65 pt-5">
                 <h2 className="text-sm font-semibold">{t("audit.details")}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{t("audit.detailsHelp")}</p>
 
@@ -243,7 +267,8 @@ export default function FiveSAuditCreate({ onBack, onStart }: FiveSAuditCreatePr
                     <SummaryItem label={t("audit.zoneLeader")} value={selectedZone?.leader || t("common.pending")} />
                     <SummaryItem label={t("audit.auditor")} value={currentUser.name} />
                     <SummaryItem label={t("common.created")} value={`${createdDate} · ${createdTime}`} />
-                    <SummaryItem label={t("audit.schedule")} value={`${t("audit.due")} ${formatDate(dueDate, locale)}`} />
+                    <SummaryItem label={t("audit.schedule")} value={mode === "schedule" && scheduledDate && scheduledTime ? `${formatDate(scheduledDate, locale)} · ${scheduledTime}` : "Start now"} />
+                    <SummaryItem label={t("audit.dueDate")} value={formatDate(dueDate, locale)} />
                   </div>
                 </div>
               </section>

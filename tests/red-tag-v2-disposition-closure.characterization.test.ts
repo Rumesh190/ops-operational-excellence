@@ -73,11 +73,11 @@ describe("Red Tag V2 executable disposition", () => {
     expect(store.completeRedTagDisposition(tag.id, evidence, reviewer)).toBeUndefined();
     store.reconcileRedTagActions([completedAction("ACT-3C-1", "Completed")]);
     expect(store.getRedTag(tag.id)?.status).toBe("Disposition In Progress");
-    expect(store.completeRedTagDisposition(tag.id, evidence, reviewer)).toMatchObject({ status: "Awaiting Verification", actionId: "ACT-3C-1", syncedActionStatus: "Completed" });
+    expect(store.completeRedTagDisposition(tag.id, { evidence, completionNotes: "Relocated as approved", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Awaiting Verification", actionId: "ACT-3C-1", syncedActionStatus: "Completed" });
 
     const direct = create(store, "return");
     store.startRedTagDisposition(direct.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-09-30" }, reviewer);
-    expect(store.completeRedTagDisposition(direct.id, evidence, reviewer)).toMatchObject({ status: "Awaiting Verification" });
+    expect(store.completeRedTagDisposition(direct.id, { evidence, completionNotes: "Returned as approved", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Awaiting Verification" });
     expect(store.getRedTag(direct.id)?.actionId).toBeUndefined();
   });
 });
@@ -92,7 +92,7 @@ describe("Red Tag V2 special decisions", () => {
     expect(store.getRedTag(tag.id)?.actionId).toBeUndefined();
     expect(store.getRedTag(tag.id)?.dispositionDetails).toBeUndefined();
     expect(store.closeRedTag(tag.id, reviewer)).toBeUndefined();
-    store.verifyRedTagDisposition(tag.id, { passed: true, details: "Keep location and identification verified" }, creator);
+    store.verifyRedTagDisposition(tag.id, { passed: true, details: "Keep location and identification verified", evidence }, creator);
     const closed = store.closeRedTag(tag.id, creator)!;
     expect(closed.status).toBe("Closed");
     expect(closed.history.map((event) => event.type)).toContain("keep_confirmed");

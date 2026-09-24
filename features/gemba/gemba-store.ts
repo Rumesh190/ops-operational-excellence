@@ -4,9 +4,14 @@ import { useSyncExternalStore } from "react";
 
 import { safeSetStorage } from "@/lib/browser-storage";
 import { dataUrlToBlob, isGembaPhotoStorageAvailable, saveGembaPhoto } from "@/lib/gemba/gemba-photo-storage";
+import { getAdminUser } from "@/features/five-s/administration/store";
+import { createNotification } from "@/lib/notifications/notification-store";
+import { getOrganizationZones } from "@/lib/organization-store";
 import type {
   GembaActor,
   GembaEvidence,
+  GembaHorizontalDeployment,
+  GembaHorizontalDeploymentRecipient,
   GembaObservation,
   GembaObservationType,
   GembaParticipant,
@@ -331,7 +336,53 @@ export interface SaveObservationInput {
   peopleInvolved: string[];
   evidence: GembaEvidence[];
   voiceNote?: GembaVoiceNote;
+  correctiveActionNeeded?: boolean;
   noActionReason?: string;
+  horizontalDeployment?: {
+    enabled: boolean;
+    targetZoneIds: string[];
+  };
+}
+
+export function validateGembaHorizontalDeployment(sourceZone: string, enabled: boolean, targetZoneIds: string[]) {
+  if (!enabled) return null;
+  const zones = getOrganizationZones().filter((zone) => zone.status === "Active");
+  const source = zones.find((zone) => zone.id === sourceZone || zone.name === sourceZone);
+  const validTargets = new Set(zones.filter((zone) => zone.id !== source?.id && zone.name !== sourceZone).map((zone) => zone.id));
+  if (!targetZoneIds.some((zoneId) => validTargets.has(zoneId))) return "Select at least one other target zone.";
+  return null;
+}
+
+export function resolveGembaHorizontalDeployment(
+  sourceZone: string,
+  targetZoneIds: string[],
+  now: string,
+  existing?: GembaHorizontalDeployment,
+): GembaHorizontalDeployment {
+  const zones = getOrganizationZones().filter((zone) => zone.status === "Active");
+  const source = zones.find((zone) => zone.id === sourceZone || zone.name === sourceZone);
+  const uniqueTargets = [...new Set(targetZoneIds)];
+  const recipients: GembaHorizontalDeploymentRecipient[] = uniqueTargets.flatMap((zoneId) => {
+    const zone = zones.find((candidate) => candidate.id === zoneId);
+    if (!zone || zone.id === source?.id || zone.name === sourceZone) return [];
+    const leader = getAdminUser(zone.leaderId);
+    const previous = existing?.recipients.find((recipient) => recipient.zoneId === zone.id && recipient.leaderUserId === leader?.id);
+    if (previous) return [{ ...previous, zoneName: zone.name }];
+    return [{
+      zoneId: zone.id,
+      zoneName: zone.name,
+      leaderUserId: leader?.status === "Active" ? leader.id : undefined,
+      leaderName: leader?.status === "Active" ? leader.name : undefined,
+      notificationStatus: leader?.status === "Active" ? "shared" as const : "unavailable" as const,
+    }];
+  });
+  return {
+    enabled: true,
+    targetZoneIds: recipients.map((recipient) => recipient.zoneId),
+    recipients,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
 }
 
 export function saveGembaObservation(walkId: string, input: SaveObservationInput, actor: GembaActor, observationId?: string) {
@@ -340,17 +391,50 @@ export function saveGembaObservation(walkId: string, input: SaveObservationInput
   if (!walk || walk.status !== "In Progress") return null;
   const now = new Date().toISOString();
   const existing = observationId ? state.observations.find((item) => item.id === observationId && item.gembaId === walkId) : undefined;
-  const sanitizedInput: SaveObservationInput = { ...input, evidence: sanitizeEvidenceForPersist(input.evidence) };
+  const deploymentError = validateGembaHorizontalDeployment(walk.zone, Boolean(input.horizontalDeployment?.enabled), input.horizontalDeployment?.targetZoneIds ?? []);
+  if (deploymentError) return null;
+  const horizontalDeployment = input.horizontalDeployment?.enabled
+    ? resolveGembaHorizontalDeployment(walk.zone, input.horizontalDeployment.targetZoneIds, now, existing?.horizontalDeployment)
+    : undefined;
+  const { horizontalDeployment: deploymentInput, ...observationInput } = input;
+  void deploymentInput;
+  const sanitizedInput = { ...observationInput, evidence: sanitizeEvidenceForPersist(input.evidence), horizontalDeployment };
   const observation: GembaObservation = existing
     ? { ...existing, ...sanitizedInput, updatedAt: now }
     : { ...sanitizedInput, id: nextObservationId(walkId), gembaId: walkId, createdById: actor.id, createdByName: actor.name, createdAt: now, updatedAt: now };
   const observations = existing ? state.observations.map((item) => item.id === observation.id ? observation : item) : [observation, ...state.observations];
   const activity = [...walk.activity, event(existing ? "observation_edited" : "observation_added", existing ? `Observation ${observation.id} edited` : `${observation.type} observation added`, actor, { observationId: observation.id })];
+  const previousTargets = existing?.horizontalDeployment?.targetZoneIds ?? [];
+  const nextTargets = horizontalDeployment?.targetZoneIds ?? [];
+  if (!previousTargets.length && nextTargets.length) activity.push(event("horizontal_deployment_created", `Horizontal deployment shared with ${nextTargets.length} zone${nextTargets.length === 1 ? "" : "s"}`, actor, { observationId: observation.id }));
+  else if (previousTargets.length && !nextTargets.length) activity.push(event("horizontal_deployment_removed", "Horizontal deployment removed", actor, { observationId: observation.id }));
+  else if (previousTargets.join("|") !== nextTargets.join("|")) activity.push(event("horizontal_deployment_updated", `Horizontal deployment updated to ${nextTargets.length} zone${nextTargets.length === 1 ? "" : "s"}`, actor, { observationId: observation.id }));
   const photosAdded = Math.max(0, observation.evidence.length - (existing?.evidence.length ?? 0));
   if (photosAdded) activity.push(event("photo_uploaded", `${photosAdded} photo${photosAdded === 1 ? "" : "s"} uploaded`, actor, { observationId: observation.id }));
   if (observation.voiceNote && observation.voiceNote.id !== existing?.voiceNote?.id) activity.push(event("voice_note_added", "Voice note added", actor, { observationId: observation.id }));
   const walks = state.walks.map((item) => item.id === walkId ? { ...item, updatedAt: now, observationIds: existing ? item.observationIds : [...item.observationIds, observation.id], activity } : item);
-  return persist({ walks, observations }) ? observation : null;
+  if (!persist({ walks, observations })) return null;
+
+  const recipientsNeedingNotification = observation.horizontalDeployment?.recipients.filter((recipient) => recipient.notificationStatus === "shared" && recipient.leaderUserId && !recipient.notificationId) ?? [];
+  if (!recipientsNeedingNotification.length) return observation;
+  const notificationIds = new Map(recipientsNeedingNotification.map((recipient) => {
+    const notification = createNotification({
+      recipientUserId: recipient.leaderUserId!,
+      title: "Horizontal Deployment Opportunity",
+      message: `${observation.title} · Shared from ${walk.zone} for review in ${recipient.zoneName}`,
+      href: `/gemba/${encodeURIComponent(walk.id)}/walk#${encodeURIComponent(observation.id)}`,
+    });
+    return [recipient.zoneId, notification.id];
+  }));
+  const notifiedObservation: GembaObservation = {
+    ...observation,
+    horizontalDeployment: observation.horizontalDeployment ? {
+      ...observation.horizontalDeployment,
+      recipients: observation.horizontalDeployment.recipients.map((recipient) => ({ ...recipient, notificationId: notificationIds.get(recipient.zoneId) ?? recipient.notificationId })),
+    } : undefined,
+  };
+  const notifiedObservations = state.observations.map((item) => item.id === observation.id ? notifiedObservation : item);
+  return persist({ ...state, observations: notifiedObservations }) ? notifiedObservation : observation;
 }
 
 export function linkGembaAction(walkId: string, observationId: string, actionId: string, actor: GembaActor) {
@@ -359,7 +443,7 @@ export function linkGembaAction(walkId: string, observationId: string, actionId:
   const observation = state.observations.find((item) => item.id === observationId && item.gembaId === walkId);
   if (!walk || !observation || observation.actionId) return false;
   const now = new Date().toISOString();
-  const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, actionId, noActionReason: undefined, updatedAt: now } : item);
+  const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, actionId, correctiveActionNeeded: true, noActionReason: undefined, updatedAt: now } : item);
   const walks = state.walks.map((item) => item.id === walkId ? {
     ...item, updatedAt: now, actionIds: item.actionIds.includes(actionId) ? item.actionIds : [...item.actionIds, actionId],
     activity: [...item.activity, event("action_created", `Action ${actionId} created`, actor, { observationId, actionId })],
