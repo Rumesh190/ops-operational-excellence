@@ -7,6 +7,7 @@ import { Camera, CheckCircle2, Clock3, Eye, ImageIcon, RefreshCw, ShieldAlert, T
 import { Badge } from "@/components/ui/badge";
 import { OpsEmptyState } from "@/components/ops/ops-empty-state";
 import { OpsEvidenceViewer } from "@/components/ops/ops-evidence-viewer";
+import { OpsCameraCapture } from "@/components/ops/ops-camera-capture";
 import { OpsTabBar } from "@/components/ops/ops-tabs";
 import { OpsTimeline } from "@/components/ops/ops-timeline";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -63,7 +64,6 @@ export function EvidencePicker({ items, onChange, group, uploadedBy, title = "Ad
   compact?: boolean;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const replaceTargetRef = useRef<string | null>(null);
   const [preview, setPreview] = useState<RedFlagEvidence | null>(null);
@@ -71,7 +71,7 @@ export function EvidencePicker({ items, onChange, group, uploadedBy, title = "Ad
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function selected(list: FileList | null, replaceId?: string) {
+  async function selected(list: FileList | File[] | null, replaceId?: string) {
     if (!list) return;
     const files = Array.from(list);
     setError("");
@@ -90,18 +90,16 @@ export function EvidencePicker({ items, onChange, group, uploadedBy, title = "Ad
     } finally {
       setBusy(false);
       if (uploadRef.current) uploadRef.current.value = "";
-      if (cameraRef.current) cameraRef.current.value = "";
       if (replaceRef.current) replaceRef.current.value = "";
     }
   }
 
   return <div className="grid gap-2">
     <input ref={uploadRef} type="file" accept="image/*" multiple className="sr-only" onChange={(event) => void selected(event.target.files)} />
-    <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void selected(event.target.files)} />
     <input ref={replaceRef} type="file" accept="image/*" className="sr-only" onChange={(event) => { void selected(event.target.files, replaceTargetRef.current ?? undefined); replaceTargetRef.current = null; }} />
     <div className={cn("grid gap-2", !compact && "sm:grid-cols-[minmax(0,1fr)_auto_auto]")}>
       <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note for selected photos" />
-      <Button type="button" variant="outline" className="min-h-11" onClick={() => cameraRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button>
+      <OpsCameraCapture disabled={busy || items.length >= MAX_EVIDENCE_IMAGES} fileNamePrefix="red-flag-evidence" onCapture={(file) => selected([file])} trigger={(openCamera) => <Button type="button" variant="outline" className="min-h-11" onClick={openCamera} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button>} />
       <Button type="button" variant="outline" className="min-h-11" aria-label={`${title}: Upload Photo`} onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : "Upload Photo"}</Button>
     </div>
     <p className={cn("text-[11px]", error ? "text-destructive" : "text-muted-foreground")}>{error || `${items.length}/${MAX_EVIDENCE_IMAGES} photos · JPG, PNG, or camera capture`}</p>

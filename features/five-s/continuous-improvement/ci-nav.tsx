@@ -14,5 +14,5 @@ const CI_TABS = [
 export function ContinuousImprovementNav() {
   const pathname = usePathname();
   const active = pathname.startsWith("/continuous-improvement/settings") ? "settings" : "overview";
-  return <OpsTabBar label="Continuous Improvement sections" tabs={CI_TABS} active={active} />;
+  return <OpsTabBar label="Continual Improvement sections" tabs={CI_TABS} active={active} />;
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, Camera, CheckCircle2, Clock3, FileEdit, ImageIcon, Link2, RotateCcw, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OpsCameraCapture } from "@/components/ops/ops-camera-capture";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MAX_EVIDENCE_IMAGES, optimizeEvidenceImage, validateEvidenceSelection } from "@/lib/evidence-images";
@@ -47,12 +48,11 @@ export function VisualEvidencePicker({ items, onChange, uploadedBy, label = "Add
   required?: boolean;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function selected(list: FileList | null) {
+  async function selected(list: FileList | File[] | null) {
     if (!list) return;
     const files = Array.from(list);
     setError("");
@@ -71,16 +71,14 @@ export function VisualEvidencePicker({ items, onChange, uploadedBy, label = "Add
     } finally {
       setBusy(false);
       if (uploadRef.current) uploadRef.current.value = "";
-      if (cameraRef.current) cameraRef.current.value = "";
     }
   }
 
   return <div className="grid gap-3">
     <input ref={uploadRef} type="file" accept="image/*" multiple className="sr-only" onChange={(event) => void selected(event.target.files)} />
-    <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void selected(event.target.files)} />
     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
       <Input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Short caption for selected photos" />
-      <Button type="button" variant="outline" className="min-h-11" onClick={() => cameraRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button>
+      <OpsCameraCapture disabled={busy || items.length >= MAX_EVIDENCE_IMAGES} fileNamePrefix="visual-improvement" onCapture={(file) => selected([file])} trigger={(openCamera) => <Button type="button" variant="outline" className="min-h-11" onClick={openCamera} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button>} />
       <Button type="button" variant="outline" className="min-h-11" aria-label={`${label}: Upload Photo`} onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : "Upload Photo"}</Button>
     </div>
     <p className={cn("text-[11px]", error ? "text-destructive" : "text-muted-foreground")}>{error || `${required ? "Required · " : ""}${items.length}/${MAX_EVIDENCE_IMAGES} photos · JPG, PNG, or camera capture`}</p>

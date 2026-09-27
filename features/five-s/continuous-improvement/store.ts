@@ -14,7 +14,7 @@ import {
   canReviewProposal,
   canViewImprovement,
 } from "./access";
-import { generateImprovementId, IMPROVEMENT_STATUSES } from "./config";
+import { generateImprovementId, IMPROVEMENT_STATUSES, matchesImprovementQuickFilter } from "./config";
 import type {
   ContinuousImprovement,
   CreateImprovementInput,
@@ -124,6 +124,7 @@ function normalizeRecord(value: ContinuousImprovement): ContinuousImprovement {
   const memberNames = value.memberNames ?? [];
   const participants = value.participants ?? memberIds.map((id, index) => ({ id, name: memberNames[index] ?? id }));
   const validStatus = IMPROVEMENT_STATUSES.includes(value.status) ? value.status : "submitted";
+  const completedAt = value.completedAt ?? (validStatus === "completed" ? [...(value.timeline ?? [])].reverse().find((item) => item.type === "completed")?.at : undefined);
   return {
     ...value,
     zoneCode: value.zoneCode ?? zone?.code ?? "ZA",
@@ -139,6 +140,7 @@ function normalizeRecord(value: ContinuousImprovement): ContinuousImprovement {
     memberNames,
     participants,
     status: validStatus,
+    completedAt,
     actionIds: value.actionIds ?? [],
     beforeEvidence,
     afterEvidence,
@@ -364,10 +366,10 @@ export function getContinuousImprovementSummary(input: readonly ContinuousImprov
   const approved = reviewed.filter((item) => !["rejected", "on_hold"].includes(item.status));
   const completionDays = completed.flatMap((item) => item.completedAt ? [(new Date(item.completedAt).getTime() - new Date(item.createdAt).getTime()) / 86_400_000] : []);
   return {
-    proposed: input.filter((item) => ["draft", "submitted"].includes(item.status)).length,
-    underReview: input.filter((item) => ["submitted", "under_review"].includes(item.status)).length,
+    proposed: input.filter((item) => matchesImprovementQuickFilter(item, "proposal")).length,
+    underReview: input.filter((item) => matchesImprovementQuickFilter(item, "under-review")).length,
     approved: input.filter((item) => item.status === "approved").length,
-    inProgress: input.filter((item) => item.status === "in_progress").length,
+    inProgress: input.filter((item) => matchesImprovementQuickFilter(item, "in-progress")).length,
     active: input.filter((item) => ["approved", "in_progress", "awaiting_completion_review"].includes(item.status)).length,
     pendingReviews: input.filter((item) => ["submitted", "under_review", "on_hold", "awaiting_completion_review"].includes(item.status)).length,
     completed: completed.length,

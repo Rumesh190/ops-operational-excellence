@@ -74,7 +74,7 @@ export const OPS_SOURCE_LABELS: Record<OpsSourceId, string> = {
   gemba: "Gemba",
   redFlag: "Red Flag",
   redTag: "Red Tag",
-  continuousImprovement: "Continuous Improvement",
+  continuousImprovement: "Continual Improvement",
   visualManagement: "Visual Management",
   manual: "Manual",
 };

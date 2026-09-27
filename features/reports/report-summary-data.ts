@@ -4,6 +4,7 @@ import type { ContinuousImprovement } from "@/features/five-s/continuous-improve
 import type { GembaState } from "@/features/gemba/types";
 import type { RedFlag } from "@/features/red-flag/types";
 import type { VisualImprovement } from "@/features/visual-improvement/types";
+import { getActionSourceDefinition } from "@/lib/actions/action-config";
 import { REPORT_TYPES, getReportModule, type ReportTypeId } from "./report-registry";
 
 export interface ReportSummaryColumn {
@@ -103,7 +104,7 @@ function beforeAfter(input: ReportSummaryInput, generatedAt: string): ReportSumm
     completionDate: action.completedAt ?? "",
   }));
   const ciPairs: ReportSummaryEvidencePair[] = input.improvements.filter((item) => item.status === "completed").map((item) => ({
-    id: `ci:${item.id}`, reference: item.id, module: "Continuous Improvement", title: item.title,
+    id: `ci:${item.id}`, reference: item.id, module: "Continual Improvement", title: item.title,
     before: item.beforeEvidence[0]?.url ?? item.existingPhotos[0]?.url,
     after: item.afterEvidence[0]?.url ?? item.evidence[0]?.url,
     description: item.actualBenefit ?? item.actionTaken ?? item.proposedImprovement,
@@ -115,7 +116,7 @@ function beforeAfter(input: ReportSummaryInput, generatedAt: string): ReportSumm
     after: pair.after ?? "No image", description: pair.description, owner: pair.owner, completionDate: pair.completionDate,
   }));
   return {
-    ...summary("beforeAfterSummary", "Paired evidence from completed Actions and Continuous Improvements.", "/actions?tab=completed", generatedAt, [
+    ...summary("beforeAfterSummary", "Paired evidence from completed Actions and Continual Improvements.", "/actions?tab=completed", generatedAt, [
       column("module", "Module"), column("reference", "Reference"), column("title", "Report"), column("before", "Before"),
       column("after", "After"), column("description", "Description"), column("owner", "Owner"), column("completionDate", "Completion Date"),
     ], rows),
@@ -126,7 +127,7 @@ function beforeAfter(input: ReportSummaryInput, generatedAt: string): ReportSumm
 function overdueActions(input: ReportSummaryInput, generatedAt: string): ReportSummaryModel {
   const now = new Date(generatedAt);
   const rows = input.actions.filter((action) => action.status !== "Completed" && new Date(`${action.dueDate}T23:59:59`).getTime() < now.getTime()).map((action) => ({
-    action: action.id, title: action.title, source: action.sourceLabel ?? action.sourceTitle, plant: action.plant, zone: action.area,
+    action: action.id, title: action.title, source: getActionSourceDefinition(action).label, plant: action.plant, zone: action.area,
     priority: action.priority, owner: action.responsiblePersonName ?? action.assignedTo, dueDate: action.dueDate, status: action.status,
   }));
   return summary("overdueActionSummary", "Open Actions that have passed their due date.", "/actions?status=Overdue", generatedAt, [
@@ -141,7 +142,7 @@ function ciSavings(input: ReportSummaryInput, generatedAt: string): ReportSummar
     proposedBenefit: item.expectedBenefit, proposedSaving: money(item.proposedSaving), actualBenefit: item.actualBenefit ?? "Not recorded",
     actualSaving: item.actualSaving === undefined ? "Not recorded" : money(item.actualSaving), variance: item.actualSaving === undefined ? "—" : money(item.actualSaving - item.proposedSaving), status: humanStatus(item.status),
   }));
-  return summary("benefitSavingsSummary", "Proposed and realized Continuous Improvement benefits and savings.", "/continuous-improvement", generatedAt, [
+  return summary("benefitSavingsSummary", "Proposed and realized Continual Improvement benefits and savings.", "/continuous-improvement", generatedAt, [
     column("improvement", "Improvement"), column("title", "Title"), column("plant", "Plant"), column("zone", "Zone"),
     column("benefitType", "Benefit Type"), column("proposedBenefit", "Proposed Benefit"), column("proposedSaving", "Proposed Saving"),
     column("actualBenefit", "Actual Benefit"), column("actualSaving", "Actual Saving"), column("variance", "Variance"), column("status", "Status"),

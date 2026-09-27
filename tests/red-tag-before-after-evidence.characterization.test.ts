@@ -126,7 +126,7 @@ describe("Feedback #34 Red Tag before and after evidence", () => {
     const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-module.tsx"), "utf8");
     expect(source).toContain('label="Before Photo *"');
     expect(source).toContain('label="After Photo *"');
-    expect(source).toContain('capture="environment"');
+    expect(source).toContain("OpsCameraCapture");
     expect(source).toContain("Before / After Evidence");
     expect(source).toContain("Pending disposition");
     expect(source).toContain("Before photo is required to create this Red Tag.");

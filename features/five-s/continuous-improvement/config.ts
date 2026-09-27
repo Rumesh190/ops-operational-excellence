@@ -43,6 +43,19 @@ export const IMPROVEMENT_PIPELINE = [
   { id: "completed", label: "Completed", statuses: ["completed"] },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; statuses: readonly ImprovementStatus[] }>;
 
+export type ImprovementQuickFilter = "proposal" | "under-review" | "in-progress";
+
+export const IMPROVEMENT_QUICK_FILTERS = [
+  { id: "proposal", label: "Proposal", statuses: ["draft", "submitted"] },
+  { id: "under-review", label: "Under Review", statuses: ["submitted", "under_review"] },
+  { id: "in-progress", label: "In Progress", statuses: ["in_progress"] },
+] as const satisfies ReadonlyArray<{ id: ImprovementQuickFilter; label: string; statuses: readonly ImprovementStatus[] }>;
+
+export function matchesImprovementQuickFilter(item: Pick<ContinuousImprovement, "status">, filter: ImprovementQuickFilter) {
+  const definition = IMPROVEMENT_QUICK_FILTERS.find((entry) => entry.id === filter);
+  return definition ? (definition.statuses as readonly ImprovementStatus[]).includes(item.status) : true;
+}
+
 export function generateImprovementId(records: readonly Pick<ContinuousImprovement, "id">[], year = new Date().getFullYear()) {
   const prefix = `CI-${year}-`;
   const next = records.reduce((maximum, record) => {

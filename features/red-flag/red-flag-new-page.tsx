@@ -79,7 +79,7 @@ export default function RedFlagNewPage() {
 
   if (!mayRaise) return <PageContainer><FiveSPageHeader eyebrow="OPS Workspace" title="Raise Red Flag" description="Capture an urgent operational issue." /><Card><CardContent className="grid min-h-48 place-items-center p-6 text-center"><div><ShieldAlert className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-semibold">You do not have permission to raise a Red Flag.</p><Button className="mt-4" variant="outline" nativeButton={false} render={<Link href="/red-flag" />}>Back to Red Flag</Button></div></CardContent></Card></PageContainer>;
 
-  return <PageContainer className="red-flag-quick-capture max-w-4xl pb-20 sm:pb-0">
+  return <PageContainer className="red-flag-quick-capture max-w-none pb-20 sm:pb-0">
     <FiveSPageHeader eyebrow={meetingReference ? `Visual Management / ${meetingReference}` : "OPS Workspace"} title="Raise Red Flag" description={meetingReference ? "Meeting context has been carried into the Red Flag workflow." : "Capture the essential facts now. Details and evidence can be added later."} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={meetingReference ? `/visual-management/meetings/${meetingReference}` : "/red-flag"} />} aria-label="Back to Red Flag"><ArrowLeft className="size-4" /></Button>} />
 
     <Card className="gap-0 overflow-hidden border-red-500/15 dark:border-red-400/15">

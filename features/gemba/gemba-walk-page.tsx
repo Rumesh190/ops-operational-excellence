@@ -10,6 +10,7 @@ import { CreateLinkedActionDialog, type LinkedActionContext } from "@/features/a
 import { CreateRedTagFromGembaDialog } from "@/features/gemba/components/create-red-tag-dialog";
 import { CreateCIFromGembaDialog } from "@/features/gemba/components/create-ci-from-observation-dialog";
 import { OpsFeedback } from "@/components/ops/ops-feedback";
+import { OpsCameraCapture } from "@/components/ops/ops-camera-capture";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -115,7 +116,7 @@ export default function GembaWalkPage({ walkId }: { walkId: string }) {
   if (walk.status === "Scheduled") return <PageContainer className="max-w-4xl"><FiveSPageHeader eyebrow="Gemba" title={walk.id} description={`${walk.plant} · ${formatGembaZoneLabel(walk.zone)} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} /><Card><CardContent className="grid min-h-64 place-items-center p-6 text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-xl bg-primary/[0.08] text-primary"><Footprints className="size-6" /></span><h2 className="mt-4 text-base font-semibold">This walk is scheduled</h2><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">Start the walk when the team reaches {formatGembaZoneLabel(walk.zone)}. Observation capture will open immediately.</p><Button className="mt-5" onClick={() => { startGembaWalk(walk.id, currentUser); setNotice("Walk started."); }}><Footprints className="size-4" />Start Walk</Button></div></CardContent></Card></PageContainer>;
   if (walk.status === "Completed") return <PageContainer className="max-w-4xl"><FiveSPageHeader eyebrow="Gemba" title="Walk completed" description={`${walk.id} was completed. The observations and linked actions remain available in the walk record.`} /><div className="flex gap-2"><Button nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />}>View Walk</Button><Button variant="outline" nativeButton={false} render={<Link href={`/gemba/${walk.id}/report`} />}>View Report</Button></div></PageContainer>;
 
-  return <PageContainer className="gemba-active-walk max-w-6xl pb-24 sm:pb-0">
+  return <PageContainer className="gemba-active-walk max-w-none pb-24 sm:pb-0">
     <FiveSPageHeader eyebrow="Active Gemba Walk" title={formatGembaZoneLabel(walk.zone)} description={`${walk.id} · ${walk.purpose}`} leading={<Button size="icon-sm" variant="ghost" nativeButton={false} render={<Link href={`/gemba/${walk.id}`} />} aria-label="Back to walk details"><ArrowLeft className="size-4" /></Button>} actions={<><GembaStatusBadge status={walk.status} /><Button className="hidden sm:inline-flex" onClick={openNew}><Plus className="size-4" />Add Observation</Button><Button variant="outline" onClick={() => setCompleteOpen(true)}><Check className="size-4" />Complete Walk</Button></>} />
 
     <section className="rounded-xl border bg-card p-3 shadow-sm"><div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center"><div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" />{walk.plant} · {formatGembaZoneLabel(walk.zone)}</span><span className="inline-flex items-center gap-1.5"><Users className="size-3.5" />{walk.leadName} + {walk.participants.length} participant{walk.participants.length === 1 ? "" : "s"}</span></div><div className="flex flex-wrap items-center gap-3 text-xs"><strong className="text-sm tabular-nums">{observations.length} Observations</strong>{TYPES.map((type) => <span key={type.id} className="inline-flex items-center gap-1.5 text-muted-foreground"><span className={cn("size-1.5 rounded-full", OBSERVATION_TYPE_STYLE[type.id].dot)} />{counts[type.id]} {type.id}</span>)}<span className="font-medium text-primary">{walk.actionIds.length} Actions</span></div></div></section>
@@ -160,7 +161,6 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
   const [evidenceError, setEvidenceError] = useState("");
   const [formNotice, setFormNotice] = useState("");
   const [previewEvidence, setPreviewEvidence] = useState<GembaEvidence | null>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const replaceTargetRef = useRef<GembaEvidence | null>(null);
@@ -181,7 +181,7 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
     return { id, storageKey: id, name: file.name, url: URL.createObjectURL(optimized.blob), mimeType: optimized.mimeType, size: optimized.size, note, uploadedAt: new Date().toISOString(), uploadedBy: currentUser.name };
   }
 
-  async function addEvidence(files: FileList | null) {
+  async function addEvidence(files: FileList | File[] | null) {
     if (!files) return;
     setError(""); setBusy(true);
     try {
@@ -351,11 +351,10 @@ function ObservationCaptureDialog({ open, onOpenChange, walkId, plant, zone, wal
           <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Add a photo to support this observation.</p>
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3">
-            <EvidenceActionCard icon={Camera} label="Take Photo" description="Use your camera" disabled={evidenceFull} onClick={() => cameraRef.current?.click()} />
+            <OpsCameraCapture disabled={evidenceFull} fileNamePrefix="gemba-observation" onCapture={(file) => addEvidence([file])} trigger={(openCamera) => <EvidenceActionCard icon={Camera} label="Take Photo" description="Use live camera" disabled={evidenceFull} onClick={openCamera} />} />
             <EvidenceActionCard icon={ImagePlus} label="Upload Photo" description="Choose from device" disabled={evidenceFull} onClick={() => uploadRef.current?.click()} />
           </div>
           <input ref={uploadRef} hidden type="file" accept="image/*" multiple onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
-          <input ref={cameraRef} hidden type="file" accept="image/*" capture="environment" onChange={(event) => { void addEvidence(event.target.files); event.target.value = ""; }} />
           <input ref={replaceRef} hidden type="file" accept="image/*" onChange={(event) => { const target = replaceTargetRef.current; const file = event.target.files?.[0]; if (target && file) void replaceEvidence(target, file); replaceTargetRef.current = null; event.target.value = ""; }} />
 
           {evidenceError && <p role="alert" className="mt-3 rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-xs leading-5 text-red-700 dark:text-red-400">{evidenceError}</p>}

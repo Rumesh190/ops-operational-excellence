@@ -17,9 +17,14 @@ describe("Team Feedback #24 — full-width OPS workspace", () => {
     expect(pageContainer).toContain(
       '"motion-page-enter flex w-full flex-1 flex-col gap-5 lg:gap-6"',
     );
-    expect(appShell).toContain(
-      'className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col"',
-    );
+    expect(appShell).toContain('className="flex w-full flex-1 flex-col"');
+    expect(appShell).not.toContain("max-w-[1680px]");
+  });
+
+  it("lets the active Gemba walk use the full operational workspace", () => {
+    const walk = source("features/gemba/gemba-walk-page.tsx");
+    expect(walk).toContain('className="gemba-active-walk max-w-none');
+    expect(walk).not.toContain('className="gemba-active-walk max-w-6xl');
   });
 
   it("lets the Gemba creation form use the available workspace", () => {

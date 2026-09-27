@@ -32,7 +32,7 @@ function AppShell({
         <Header />
 
         <main className="flex min-w-0 flex-1 flex-col px-4 py-5 sm:px-5 sm:py-6 lg:px-6 lg:py-6 2xl:px-8 2xl:py-8">
-          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col">
+          <div className="flex w-full flex-1 flex-col">
             {children}
           </div>
         </main>

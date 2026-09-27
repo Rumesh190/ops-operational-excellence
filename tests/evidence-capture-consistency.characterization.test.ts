@@ -13,6 +13,7 @@ const ci = source("features/five-s/continuous-improvement/components.tsx");
 const visual = source("features/visual-improvement/visual-improvement-components.tsx");
 const report = source("features/gemba/gemba-report-page.tsx");
 const photoStore = source("lib/gemba/gemba-photo-storage.ts");
+const sharedCamera = source("components/ops/ops-camera-capture.tsx");
 
 describe("Team Feedback #15/#33/#35 — evidence capture consistency", () => {
   it.each([
@@ -24,8 +25,13 @@ describe("Team Feedback #15/#33/#35 — evidence capture consistency", () => {
 
   it.each([
     ["Gemba", gemba], ["Audit", audit], ["Actions", action], ["Red Flag", redFlag], ["Red Tag", redTag], ["CI", ci], ["Visual Improvement compatibility", visual],
-  ])("%s Take Photo uses an image input with the environment hint", (_name, moduleSource) => {
-    expect(moduleSource).toMatch(/type="file"[^>]*accept="image\/\*"[^>]*capture="environment"/);
+  ])("%s Take Photo uses the shared live camera flow", (_name, moduleSource) => {
+    expect(moduleSource).toContain("OpsCameraCapture");
+  });
+
+  it("requests a video-only environment-facing MediaStream", () => {
+    expect(sharedCamera).toContain("navigator.mediaDevices.getUserMedia");
+    expect(sharedCamera).toContain('audio: false, video: { facingMode: { ideal: "environment" } }');
   });
 
   it("keeps Upload Photo inputs free of a forced capture hint", () => {

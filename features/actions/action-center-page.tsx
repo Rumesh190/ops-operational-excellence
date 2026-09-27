@@ -55,6 +55,7 @@ import {
   filterActionCenterItems,
   getActionCenterCounts,
   getActionsForTab,
+  getRoleVisibleActions,
   getReviewAgeLabel,
   type ActionCenterFilters,
   type ActionCenterTab,
@@ -104,9 +105,12 @@ export default function ActionCenterPage({ initialTab, initialStatus, initialSou
     due: initialStatus === "overdue" ? "Overdue" : "All",
   }));
 
-  const counts = useMemo(() => getActionCenterCounts(actions, currentUser, adminUser), [actions, currentUser, adminUser]);
+  const now = useMemo(() => new Date(), []);
+  const counts = useMemo(() => getActionCenterCounts(actions, currentUser, adminUser, now), [actions, currentUser, adminUser, now]);
   const tabActions = useMemo(() => getActionsForTab(actions, activeTab, currentUser, adminUser), [actions, activeTab, currentUser, adminUser]);
-  const filtered = useMemo(() => filterActionCenterItems(tabActions, filters), [filters, tabActions]);
+  const activeQuickFilter = filters.status === "Open" ? "open" : filters.status === "Overdue" ? "overdue" : undefined;
+  const roleVisibleActions = useMemo(() => getRoleVisibleActions(actions, currentUser, adminUser), [actions, currentUser, adminUser]);
+  const filtered = useMemo(() => filterActionCenterItems(activeQuickFilter ? roleVisibleActions : tabActions, filters, now), [activeQuickFilter, filters, now, roleVisibleActions, tabActions]);
   const sourceOptions = getEnabledActionSources(access);
   const tabs = ACTION_CENTER_TABS.filter((tab) => tab.id !== "team-actions" || canViewTeamActions(adminUser));
   const activeFilterCount = [filters.source, filters.status, filters.priority, filters.plant, filters.zone, filters.assignedTo, filters.due].filter((value) => value !== "All").length;
@@ -119,14 +123,27 @@ export default function ActionCenterPage({ initialTab, initialStatus, initialSou
     setFilters({ search: "", source: "All", status: "All", priority: "All", plant: "All", zone: "All", assignedTo: "All", due: "All" });
   }
 
+  function toggleQuickFilter(filter: "open" | "overdue") {
+    const selected = activeQuickFilter === filter;
+    setFilters((current) => ({
+      ...current,
+      status: selected ? "All" : filter === "open" ? "Open" : "Overdue",
+      due: selected || filter === "open" ? "All" : "Overdue",
+    }));
+  }
+
+  function updateStatusFilter(value: ActionStatusFilter) {
+    setFilters((current) => ({ ...current, status: value, due: value === "Overdue" ? "Overdue" : current.due === "Overdue" ? "All" : current.due }));
+  }
+
   return <PageContainer className="max-w-none">
     <FiveSPageHeader eyebrow="OPS Workspace" title="Actions" description="Track, complete, review, and close actions created across OPS." actions={canCreate ? <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" />Create Action</Button> : undefined} />
 
     <OpsTabBar label="Actions sections" active={activeTab} onChange={(id) => setActiveTab(id as ActionCenterTab)} tabs={[...tabs.map((tab) => ({ ...tab, count: counts.tabs[tab.id] })), { id: "settings", label: "Settings", href: "/actions/settings" }]} />
 
     <section aria-label="Action summary" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      <SummaryMetric label="Open" value={counts.open} tone="warning" onClick={() => updateFilter("status", "Open")} />
-      <SummaryMetric label="Overdue" value={counts.overdue} tone="danger" onClick={() => { updateFilter("status", "Overdue"); updateFilter("due", "Overdue"); }} />
+      <SummaryMetric label="Open" value={counts.open} tone="warning" selected={activeQuickFilter === "open"} onClick={() => toggleQuickFilter("open")} />
+      <SummaryMetric label="Overdue" value={counts.overdue} tone="danger" selected={activeQuickFilter === "overdue"} onClick={() => toggleQuickFilter("overdue")} />
       <SummaryMetric label="Critical" value={counts.critical} tone="danger" onClick={() => updateFilter("priority", "Critical")} />
       <SummaryMetric label="Awaiting Review" value={counts.awaitingReview} tone="info" onClick={() => setActiveTab("awaiting-review")} />
       <SummaryMetric label="Completed This Month" value={counts.completedThisMonth} tone="success" onClick={() => setActiveTab("completed")} />
@@ -134,10 +151,11 @@ export default function ActionCenterPage({ initialTab, initialStatus, initialSou
 
     <Card className="min-w-0 gap-0 overflow-hidden">
       <CardContent className="border-b p-3">
+        {activeQuickFilter && <div className="mb-3 flex min-w-0 items-center justify-between gap-3 rounded-lg bg-primary/[0.06] px-3 py-2 text-xs"><p className="min-w-0 truncate"><span className="font-semibold">{activeQuickFilter === "open" ? "Open actions" : "Overdue actions"}</span><span className="text-muted-foreground"> · {filtered.length} {filtered.length === 1 ? "record" : "records"}</span></p><Button type="button" variant="ghost" size="sm" className="h-8 shrink-0" onClick={() => toggleQuickFilter(activeQuickFilter)}><X className="size-3.5" />Clear</Button></div>}
         <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(240px,1fr)_180px_170px_160px_auto]">
           <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} className="pl-9" placeholder="Search actions, source, person..." /></div>
           <FilterSelect value={filters.source} onChange={(value) => updateFilter("source", value as ActionCenterFilters["source"])} ariaLabel="Source module"><SelectItem value="All">All sources</SelectItem>{sourceOptions.map((source) => <SelectItem key={source.id} value={source.id}>{source.label}</SelectItem>)}</FilterSelect>
-          <FilterSelect value={filters.status} onChange={(value) => updateFilter("status", value as ActionStatusFilter)} ariaLabel="Status"><SelectItem value="All">All statuses</SelectItem>{STATUS_FILTERS.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item === "Open" ? "Open / Active" : item}</SelectItem>)}</FilterSelect>
+          <FilterSelect value={filters.status} onChange={(value) => updateStatusFilter(value as ActionStatusFilter)} ariaLabel="Status"><SelectItem value="All">All statuses</SelectItem>{STATUS_FILTERS.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item === "Open" ? "Open / Active" : item}</SelectItem>)}</FilterSelect>
           <FilterSelect value={filters.priority} onChange={(value) => updateFilter("priority", value as ActionCenterFilters["priority"])} ariaLabel="Priority"><SelectItem value="All">All priorities</SelectItem>{PRIORITIES.filter((item) => item !== "All").map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}{hasLegacyCritical && <SelectItem value="Critical">Legacy: Critical</SelectItem>}</FilterSelect>
           <Button type="button" variant={moreFilters || activeFilterCount > 3 ? "secondary" : "outline"} onClick={() => setMoreFilters((value) => !value)}><SlidersHorizontal className="size-4" />More filters{activeFilterCount > 0 && <span className="rounded bg-primary px-1.5 text-[10px] text-primary-foreground">{activeFilterCount}</span>}<ChevronDown className={cn("size-3.5 transition-transform", moreFilters && "rotate-180")} /></Button>
         </div>
@@ -153,22 +171,22 @@ export default function ActionCenterPage({ initialTab, initialStatus, initialSou
       <div className="hidden min-w-0 overflow-x-auto lg:block">
         <table className="w-full min-w-[1040px] text-sm">
           <thead className="border-b bg-muted/25 text-left text-[10px] uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Action</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Action Owner</th><th className="px-4 py-3">Priority</th><th className="px-4 py-3">Due / Review Age</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Updated</th><th className="px-4 py-3 text-right">Actions</th></tr></thead>
-          <tbody className="divide-y divide-border/65">{filtered.map((action) => <ActionTableRow key={action.id} action={action} reviewMode={activeTab === "awaiting-review"} onOpen={() => router.push(`/actions/${encodeURIComponent(action.id)}`)} onReport={() => router.push(`/actions/${encodeURIComponent(action.id)}/report`)} />)}</tbody>
+          <tbody className="divide-y divide-border/65">{filtered.map((action) => <ActionTableRow key={action.id} action={action} reviewMode={!activeQuickFilter && activeTab === "awaiting-review"} onOpen={() => router.push(`/actions/${encodeURIComponent(action.id)}`)} onReport={() => router.push(`/actions/${encodeURIComponent(action.id)}/report`)} />)}</tbody>
         </table>
       </div>
 
-      <div className="grid gap-2 p-3 lg:hidden">{filtered.map((action) => <ActionMobileCard key={action.id} action={action} reviewMode={activeTab === "awaiting-review"} onOpen={() => router.push(`/actions/${encodeURIComponent(action.id)}`)} />)}</div>
+      <div className="grid gap-2 p-3 lg:hidden">{filtered.map((action) => <ActionMobileCard key={action.id} action={action} reviewMode={!activeQuickFilter && activeTab === "awaiting-review"} onOpen={() => router.push(`/actions/${encodeURIComponent(action.id)}`)} />)}</div>
 
-      {filtered.length === 0 && <OpsEmptyState icon={CheckCircle2} title={filters.status === "Overdue" || filters.due === "Overdue" ? "No overdue actions" : `No actions in ${ACTION_CENTER_TABS.find((tab) => tab.id === activeTab)?.label ?? "this view"}`} description={filters.status === "Overdue" || filters.due === "Overdue" ? "You’re up to date." : "Try changing the current filters."} action={activeFilterCount > 0 ? <Button size="sm" variant="outline" onClick={resetFilters}>Clear filters</Button> : undefined} />}
+      {filtered.length === 0 && <OpsEmptyState icon={CheckCircle2} title={activeQuickFilter === "overdue" ? "No overdue actions" : activeQuickFilter === "open" ? "No open actions" : `No actions in ${ACTION_CENTER_TABS.find((tab) => tab.id === activeTab)?.label ?? "this view"}`} description={activeQuickFilter ? activeQuickFilter === "overdue" ? "You’re up to date." : "No active work matches the current filters." : "Try changing the current filters."} action={activeFilterCount > 0 ? <Button size="sm" variant="outline" onClick={resetFilters}>Clear filters</Button> : undefined} />}
     </Card>
 
     <ManualActionDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(action) => router.push(`/actions/${encodeURIComponent(action.id)}`)} />
   </PageContainer>;
 }
 
-function SummaryMetric({ label, value, tone, onClick }: { label: string; value: number; tone: "warning" | "danger" | "info" | "success"; onClick: () => void }) {
+function SummaryMetric({ label, value, tone, selected = false, onClick }: { label: string; value: number; tone: "warning" | "danger" | "info" | "success"; selected?: boolean; onClick: () => void }) {
   const tones = { warning: "bg-amber-500", danger: "bg-red-500", info: "bg-sky-500", success: "bg-emerald-500" };
-  return <button type="button" onClick={onClick} className="relative min-w-0 overflow-hidden rounded-xl border bg-card p-3 text-left shadow-sm outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring"><span className={cn("absolute inset-y-3 left-0 w-0.5 rounded-r-full", tones[tone])} /><p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold leading-none tabular-nums">{value}</p></button>;
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={cn("relative min-h-16 min-w-0 overflow-hidden rounded-xl border bg-card p-3 text-left shadow-sm outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring", selected && "border-primary/45 bg-primary/[0.07] ring-1 ring-inset ring-primary/35")}><span className={cn("absolute inset-y-3 left-0 w-0.5 rounded-r-full", tones[tone])} /><p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold leading-none tabular-nums">{value}</p></button>;
 }
 
 function FilterSelect({ value, onChange, ariaLabel, children }: { value: string; onChange: (value: string) => void; ariaLabel: string; children: React.ReactNode }) {

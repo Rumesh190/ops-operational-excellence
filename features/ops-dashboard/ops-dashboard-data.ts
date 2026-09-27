@@ -344,7 +344,7 @@ export function buildOpsDashboardModel(input: OpsDashboardInput): OpsDashboardMo
 
   const moduleHealth: DashboardModuleHealth[] = [];
   if (access.audit) moduleHealth.push({ id: "audit", label: "Audit", primary: completedAudits.length ? `${auditScore}% avg score` : "No completed audits", secondary: `${completedAudits.length} completed in period`, href: "/audits", tone: completedAudits.length ? auditScore >= 80 ? "success" : "warning" : "neutral" });
-  if (access.continuousImprovement) moduleHealth.push({ id: "continuousImprovement", label: "Continuous Improvement", primary: `${activeImprovements.length} active`, secondary: `${money(completedSaving)} realized savings`, href: "/continuous-improvement?tab=improvements", tone: "info" });
+  if (access.continuousImprovement) moduleHealth.push({ id: "continuousImprovement", label: "Continual Improvement", primary: `${activeImprovements.length} active`, secondary: `${money(completedSaving)} realized savings`, href: "/continuous-improvement?tab=improvements", tone: "info" });
   if (access.redFlag) moduleHealth.push({ id: "redFlag", label: "Red Flag", primary: `${activeRedFlagCount} open · ${criticalRedFlagCount} critical`, secondary: `${awaitingRedFlagCount} awaiting closure`, href: "/red-flag", tone: activeRedFlagCount ? "warning" : "success" });
   if (access.visualManagement && input.visualManagement) moduleHealth.push({ id: "visualManagement", label: "Visual Management", primary: `${visualMeetings.length} meetings · ${visualManagementMetrics?.meetingCompletionRate ?? 0}% completion`, secondary: `${visualRedKpis} red KPI areas · ${visualEscalations.filter((item) => !["Resolved", "Returned"].includes(item.status)).length} open escalations`, href: "/visual-management", tone: visualRedKpis ? "warning" : "success" });
   if (access.gemba) moduleHealth.push({ id: "gemba", label: "Gemba", primary: `${periodGembaWalks.length} walks · ${periodGembaObservations.length} observations`, secondary: `${gembaActionCount} converted to actions`, href: "/gemba", tone: "info" });
@@ -352,7 +352,7 @@ export function buildOpsDashboardModel(input: OpsDashboardInput): OpsDashboardMo
   const actionSources: DashboardActionSource[] = [];
   const sourceCount = (moduleId: OperationalModuleId) => openActions.filter((action) => inferActionSourceModule(action) === moduleId).length;
   if (access.audit) actionSources.push({ id: "audit", label: "Audit", value: sourceCount("audit"), href: `/actions?tab=${actionTab}&source=audit` });
-  if (access.continuousImprovement) actionSources.push({ id: "continuousImprovement", label: "Continuous Improvement", value: sourceCount("continuousImprovement"), href: `/actions?tab=${actionTab}&source=continuousImprovement` });
+  if (access.continuousImprovement) actionSources.push({ id: "continuousImprovement", label: "Continual Improvement", value: sourceCount("continuousImprovement"), href: `/actions?tab=${actionTab}&source=continuousImprovement` });
   if (access.redFlag) actionSources.push({ id: "redFlag", label: "Red Flag", value: sourceCount("redFlag"), href: `/actions?tab=${actionTab}&source=redFlag` });
   if (access.visualManagement) actionSources.push({ id: "visualManagement", label: "Visual Management", value: sourceCount("visualManagement"), href: `/actions?tab=${actionTab}&source=visualManagement` });
   if (access.gemba) actionSources.push({ id: "gemba", label: "Gemba", value: sourceCount("gemba"), href: `/actions?tab=${actionTab}&source=gemba` });

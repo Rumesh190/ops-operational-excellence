@@ -57,7 +57,7 @@ describe("OPS product information architecture", () => {
   });
 
   it("derives conceptual breadcrumb parents from centralized navigation metadata", () => {
-    expect(crumbsForPath("/continuous-improvement").map((crumb) => crumb.label)).toEqual(["Improve", "Continuous Improvement"]);
+    expect(crumbsForPath("/continuous-improvement").map((crumb) => crumb.label)).toEqual(["Improve", "Continual Improvement"]);
     expect(crumbsForPath("/gemba").map((crumb) => crumb.label)).toEqual(["Observe", "Gemba"]);
     expect(crumbsForPath("/red-flag").map((crumb) => crumb.label)).toEqual(["Identify", "Red Flag"]);
     expect(crumbsForPath("/5s/red/RT-EGM-ZA-001").map((crumb) => crumb.label)).toEqual(["Item Disposition", "Red Tag", "RT-EGM-ZA-001"]);

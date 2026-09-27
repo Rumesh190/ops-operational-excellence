@@ -91,7 +91,7 @@ export function CreateCIFromGembaDialog({
 
   async function handleCreate() {
     if (!canCreate) {
-      setError("You do not have permission to create Continuous Improvements.");
+      setError("You do not have permission to create Continual Improvements.");
       return;
     }
 
@@ -147,7 +147,7 @@ export function CreateCIFromGembaDialog({
       }, currentUser);
 
       if (!improvement) {
-        setError("Failed to create Continuous Improvement. Please try again.");
+        setError("Failed to create Continual Improvement. Please try again.");
         setCreating(false);
         return;
       }
@@ -191,7 +191,7 @@ export function CreateCIFromGembaDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lightbulb className="size-5 text-primary" />
-            Create Continuous Improvement
+            Create Improvement
           </DialogTitle>
           <DialogDescription>
             Create an improvement record from this Gemba observation. Review and

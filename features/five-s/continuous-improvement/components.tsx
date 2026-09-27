@@ -6,6 +6,7 @@ import { Camera, CheckCircle2, Clock3, Eye, FileEdit, ImageIcon, Link2, PauseCir
 import { Badge } from "@/components/ui/badge";
 import { OpsEmptyState } from "@/components/ops/ops-empty-state";
 import { OpsEvidenceViewer } from "@/components/ops/ops-evidence-viewer";
+import { OpsCameraCapture } from "@/components/ops/ops-camera-capture";
 import { OpsTabBar } from "@/components/ops/ops-tabs";
 import { OpsTimeline } from "@/components/ops/ops-timeline";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -21,13 +22,12 @@ export function ImprovementStatusBadge({ status }: { status: ImprovementStatus }
   return <StatusBadge status={IMPROVEMENT_STATUS_LABELS[status]} />;
 }
 
-export function ImprovementTabs({ tabs, active, onChange, label = "Continuous Improvement sections" }: { tabs: Array<{ id: string; label: string; count?: number; href?: string }>; active: string; onChange: (id: string) => void; label?: string }) {
+export function ImprovementTabs({ tabs, active, onChange, label = "Continual Improvement sections" }: { tabs: Array<{ id: string; label: string; count?: number; href?: string }>; active: string; onChange: (id: string) => void; label?: string }) {
   return <OpsTabBar tabs={tabs} active={active} onChange={onChange} label={label} />;
 }
 
 export function ImprovementEvidencePicker({ items, onChange, uploadedBy, label = "Upload images", required = false }: { items: ImprovementEvidence[]; onChange: (items: ImprovementEvidence[]) => void; uploadedBy: string; label?: string; required?: boolean }) {
   const uploadRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const replaceTargetRef = useRef<string | null>(null);
   const [preview, setPreview] = useState<ImprovementEvidence | null>(null);
@@ -35,7 +35,7 @@ export function ImprovementEvidencePicker({ items, onChange, uploadedBy, label =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function selected(list: FileList | null, replaceId?: string) {
+  async function selected(list: FileList | File[] | null, replaceId?: string) {
     if (!list) return;
     const files = Array.from(list);
     setError("");
@@ -54,19 +54,17 @@ export function ImprovementEvidencePicker({ items, onChange, uploadedBy, label =
     } finally {
       setBusy(false);
       if (uploadRef.current) uploadRef.current.value = "";
-      if (cameraRef.current) cameraRef.current.value = "";
       if (replaceRef.current) replaceRef.current.value = "";
     }
   }
 
   return <div className="grid gap-3">
     <input ref={uploadRef} type="file" accept="image/*" multiple className="sr-only" onChange={(event) => void selected(event.target.files)} />
-    <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void selected(event.target.files)} />
     <input ref={replaceRef} type="file" accept="image/*" className="sr-only" onChange={(event) => { void selected(event.target.files, replaceTargetRef.current ?? undefined); replaceTargetRef.current = null; }} />
-    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><Input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Short caption for selected photos" /><Button type="button" variant="outline" className="min-h-11" onClick={() => cameraRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button><Button type="button" variant="outline" className="min-h-11" aria-label={`${label}: Upload Photo`} onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : "Upload Photo"}</Button></div>
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><Input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Short caption for selected photos" /><OpsCameraCapture disabled={busy || items.length >= MAX_EVIDENCE_IMAGES} fileNamePrefix="ci-evidence" onCapture={(file) => selected([file])} trigger={(openCamera) => <Button type="button" variant="outline" className="min-h-11" onClick={openCamera} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Camera className="size-4" />Take Photo</Button>} /><Button type="button" variant="outline" className="min-h-11" aria-label={`${label}: Upload Photo`} onClick={() => uploadRef.current?.click()} disabled={busy || items.length >= MAX_EVIDENCE_IMAGES}><Upload className="size-4" />{busy ? "Processing..." : "Upload Photo"}</Button></div>
     <p className={cn("text-[11px]", error ? "text-destructive" : "text-muted-foreground")}>{error || `${required ? "Required · " : "Optional · "}${items.length}/${MAX_EVIDENCE_IMAGES} photos · JPG, PNG, or camera capture`}</p>
     {items.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">{items.map((item) => <figure key={item.id} className="overflow-hidden rounded-lg border bg-muted/25"><button type="button" onClick={() => setPreview(item)} className="block w-full"><img src={item.url} alt={item.caption || item.name} className="aspect-[4/3] w-full object-cover" /></button><figcaption className="truncate px-2 py-1.5 text-[10px] text-muted-foreground">{item.caption || item.name}</figcaption><div className="grid grid-cols-3 border-t bg-background"><button type="button" onClick={() => setPreview(item)} className="grid min-h-9 place-items-center" aria-label={`View ${item.name}`}><Eye className="size-3.5" /></button><button type="button" onClick={() => { replaceTargetRef.current = item.id; replaceRef.current?.click(); }} className="grid min-h-9 place-items-center border-x" aria-label={`Replace ${item.name}`}><RefreshCw className="size-3.5" /></button><button type="button" onClick={() => onChange(items.filter((candidate) => candidate.id !== item.id))} className="grid min-h-9 place-items-center text-destructive" aria-label={`Remove ${item.name}`}><Trash2 className="size-3.5" /></button></div></figure>)}</div>}
-    <OpsEvidenceViewer open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)} src={preview?.url} title={preview?.name} description={preview?.caption || "Continuous Improvement evidence"} alt={preview?.caption || preview?.name} />
+    <OpsEvidenceViewer open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)} src={preview?.url} title={preview?.name} description={preview?.caption || "Continual Improvement evidence"} alt={preview?.caption || preview?.name} />
   </div>;
 }
 
@@ -74,7 +72,7 @@ export function ImprovementBeforeAfter({ item }: { item: ContinuousImprovement }
   const [preview, setPreview] = useState<{ label: string; evidence: ImprovementEvidence } | null>(null);
   return <>
     <div className="grid gap-3 md:grid-cols-2"><EvidencePanel label="Before" evidence={item.beforeEvidence} description={item.issueDescription} tone="before" onPreview={(evidence) => setPreview({ label: "Before", evidence })} /><EvidencePanel label="After" evidence={item.afterEvidence} description={item.actualBenefit || "Completion evidence will appear after implementation."} tone="after" onPreview={(evidence) => setPreview({ label: "After", evidence })} /></div>
-    <OpsEvidenceViewer open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)} src={preview?.evidence.url} title={preview ? `${preview.label} · ${item.title}` : undefined} description={preview?.evidence.caption || preview?.evidence.name || "Continuous Improvement evidence"} alt={preview?.evidence.caption || preview?.evidence.name} />
+    <OpsEvidenceViewer open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)} src={preview?.evidence.url} title={preview ? `${preview.label} · ${item.title}` : undefined} description={preview?.evidence.caption || preview?.evidence.name || "Continual Improvement evidence"} alt={preview?.evidence.caption || preview?.evidence.name} />
   </>;
 }
 

@@ -104,7 +104,7 @@ describe("active audit-list 5S template", () => {
             "Are recurring 5S problems identified and addressed?",
             "Are 5S improvements communicated to the relevant employees?",
             "Is management or area ownership involved in maintaining 5S standards?",
-            "Is continuous improvement encouraged based on 5S audit findings?",
+            "Is continual improvement encouraged based on 5S audit findings?",
           ],
         ],
       ]

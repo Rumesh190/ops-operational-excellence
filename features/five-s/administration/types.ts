@@ -7,7 +7,7 @@ export const PERMISSION_GROUPS = {
   Audits:["audits.view","audits.create","audits.execute","audits.complete"],
   Actions:["actions.view","actions.create","actions.assign","actions.work","actions.review","actions.close"],
   Reports:["reports.view","reports.export"],
-  "Continuous Improvement":["ci.view","ci.create","ci.review","ci.implement","ci.complete"],
+  "Continual Improvement":["ci.view","ci.create","ci.review","ci.implement","ci.complete"],
   "Red Tag":["red_tag.view","red_tag.create","red_tag.manage","red_tag.print"],
   Administration:["administration.view","administration.manage_users","administration.manage_roles","administration.manage_configuration"],
 } as const;

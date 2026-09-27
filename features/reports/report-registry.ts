@@ -44,7 +44,7 @@ export const REPORT_MODULES: ReadonlyArray<{
 }> = [
   { id: "gemba", label: "Gemba", entitlement: "gemba" },
   { id: "redFlag", label: "Red Flag", entitlement: "redFlag" },
-  { id: "continuousImprovement", label: "Continuous Improvement", entitlement: "continuousImprovement" },
+  { id: "continuousImprovement", label: "Continual Improvement", entitlement: "continuousImprovement" },
   { id: "audit", label: "Audit", entitlement: "audit" },
   { id: "actions", label: "Actions", entitlement: "actions" },
   { id: "visualManagement", label: "Visual Management", entitlement: "visualManagement" },

@@ -95,7 +95,7 @@ export const OPERATIONAL_MODULES: readonly OperationalModule[] = [
   },
   {
     id: "continuousImprovement",
-    label: "Continuous Improvement",
+    label: "Continual Improvement",
     route: "/continuous-improvement",
     legacyRoutes: ["/5s/continuous-improvement"],
     description: "Manage structured improvement from idea to realized benefit.",

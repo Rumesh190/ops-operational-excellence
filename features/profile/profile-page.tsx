@@ -254,7 +254,7 @@ const NOTIFICATION_OPTIONS: Array<{ key: keyof PersonalNotificationPreferences; 
   { key: "auditNotifications", label: "Audit notifications", description: "Audit assignments, reminders, and completions." },
   { key: "gembaNotifications", label: "Gemba notifications", description: "Walk invitations, observations, and follow-ups." },
   { key: "redFlagNotifications", label: "Red Flag notifications", description: "New, assigned, and escalated Red Flags." },
-  { key: "continuousImprovementNotifications", label: "Continuous Improvement notifications", description: "Proposal, implementation, and benefit-review updates." },
+  { key: "continuousImprovementNotifications", label: "Continual Improvement notifications", description: "Proposal, implementation, and benefit-review updates." },
   { key: "visualManagementNotifications", label: "Visual Management meeting notifications", description: "Meeting reminders and escalated meeting topics." },
   { key: "systemAnnouncements", label: "System announcements", description: "Important OPS availability and product notices." },
 ];

@@ -32,7 +32,7 @@ export const FIVE_S_CATEGORY_DESCRIPTIONS: Record<
     "Establish consistent standards, visual controls, and procedures.",
 
   Sustain:
-    "Maintain 5S practices through discipline, audits, ownership, and continuous improvement.",
+    "Maintain 5S practices through discipline, audits, ownership, and continual improvement.",
 };
 
 /* =========================================================

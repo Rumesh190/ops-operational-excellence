@@ -63,14 +63,10 @@ export function resolveRecordRoute(ref: OpsRecordRef): string | null {
       return `/visual-management`;
 
     case "audit":
-      // Audit or finding
-      if (ref.childId) {
-        // Finding within audit - unsupported direct route in current architecture
-        // Route to audit detail instead
-        return `/audits/${encodeURIComponent(ref.recordId)}`;
-      }
-      // Audit detail
-      return `/audits/${encodeURIComponent(ref.recordId)}`;
+      // Audit execution/detail is selected from the canonical Audit workspace.
+      // Child references safely fall back to the parent Audit until a dedicated
+      // finding route exists.
+      return `/audits?audit=${encodeURIComponent(ref.recordId)}`;
 
     case "visualImprovement":
       // Legacy improvement route
@@ -129,7 +125,7 @@ export function getModuleDisplayName(module: OpsRecordRef["module"]): string {
     case "gemba":
       return "Gemba";
     case "continuousImprovement":
-      return "Continuous Improvement";
+      return "Continual Improvement";
     case "redFlag":
       return "Red Flag";
     case "visualManagement":

@@ -82,7 +82,7 @@ const FIVE_S_QUESTIONS: Record<FiveSCategory, string[]> = {
     "Are recurring 5S problems identified and addressed?",
     "Are 5S improvements communicated to the relevant employees?",
     "Is management or area ownership involved in maintaining 5S standards?",
-    "Is continuous improvement encouraged based on 5S audit findings?",
+    "Is continual improvement encouraged based on 5S audit findings?",
   ],
 };
 
@@ -168,7 +168,7 @@ function getCategoryDescription(
       "Establish consistent standards for workplace organization and cleanliness.",
 
     Sustain:
-      "Maintain 5S practices through discipline, monitoring, and continuous improvement.",
+      "Maintain 5S practices through discipline, monitoring, and continual improvement.",
   };
 
   return descriptions[category];

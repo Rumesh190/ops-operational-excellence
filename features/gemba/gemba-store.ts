@@ -474,7 +474,7 @@ export function linkGembaImprovement(walkId: string, observationId: string, impr
   const observations = state.observations.map((item) => item.id === observationId && item.gembaId === walkId ? { ...item, improvementId, updatedAt: now } : item);
   const walks = state.walks.map((item) => item.id === walkId ? {
     ...item, updatedAt: now,
-    activity: [...item.activity, event("red_tag_created", `Continuous Improvement ${improvementId} created`, actor, { observationId, actionId: improvementId })],
+    activity: [...item.activity, event("red_tag_created", `Continual Improvement ${improvementId} created`, actor, { observationId, actionId: improvementId })],
   } : item);
   return persist({ walks, observations });
 }

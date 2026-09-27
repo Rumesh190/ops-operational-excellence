@@ -6,8 +6,9 @@ const walkSource = readFileSync(resolve(process.cwd(), "features/gemba/gemba-wal
 const componentsSource = readFileSync(resolve(process.cwd(), "features/gemba/gemba-components.tsx"), "utf8");
 
 describe("Gemba Phase 2A evidence UX", () => {
-  it("keeps separate camera and upload inputs with the correct native hints", () => {
-    expect(walkSource).toMatch(/ref=\{cameraRef\}[^>]*accept="image\/\*"[^>]*capture="environment"/);
+  it("keeps real camera capture separate from the normal upload input", () => {
+    expect(walkSource).toContain("<OpsCameraCapture");
+    expect(walkSource).toContain("onCapture={(file) => addEvidence([file])}");
     expect(walkSource).toMatch(/ref=\{uploadRef\}[^>]*accept="image\/\*"[^>]*multiple/);
     expect(walkSource).not.toMatch(/ref=\{uploadRef\}[^>]*capture=/);
   });

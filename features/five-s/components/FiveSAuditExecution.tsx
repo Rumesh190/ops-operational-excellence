@@ -33,6 +33,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OpsCameraCapture } from "@/components/ops/ops-camera-capture";
 
 import {
   AlertDialog,
@@ -439,14 +440,6 @@ function FiveSAuditExecution({
 
 
   const fileInputRefs =
-    useRef<
-      Record<
-        string,
-        HTMLInputElement | null
-      >
-    >({});
-
-  const cameraInputRefs =
     useRef<
       Record<
         string,
@@ -1541,7 +1534,7 @@ function FiveSAuditExecution({
         </div>
 
         <div className="min-w-0 flex-1 px-0 py-5 md:overflow-y-auto md:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl space-y-5">
+          <div className="w-full max-w-none space-y-5">
             <div className="grid min-w-0 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
               <Card>
                 <CardContent className="p-4">
@@ -1794,6 +1787,7 @@ function FiveSAuditExecution({
                 )
               }
               onEvidenceUpload={(event) => handleEvidenceUpload(activeActionQuestion.id, event)}
+              onEvidenceFile={(file) => createEvidenceFromFile(activeActionQuestion.id, file)}
               onEvidenceRemove={(evidenceId) => removeEvidence(activeActionQuestion.id, evidenceId)}
               onEvidencePreview={(evidence) => { setPreviewZoom(1); setPreviewEvidence(evidence); }}
               saving={actionSaving}
@@ -1879,7 +1873,7 @@ function FiveSAuditExecution({
         ref={questionScrollRef}
         className={`w-full min-w-0 max-w-full flex-1 touch-pan-y px-0 [-webkit-overflow-scrolling:touch] md:min-h-0 md:px-6 lg:px-8 ${fullScreen ? "min-h-0 overflow-y-auto overscroll-contain py-2 md:py-3" : "overflow-visible py-4 md:overflow-y-auto lg:overflow-hidden"}`}
       >
-        <div className={`mx-auto grid w-full min-w-0 gap-4 lg:h-full lg:min-h-0 ${fullScreen ? "max-w-[1600px]" : "max-w-[1600px] lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]"}`}>
+        <div className={`grid w-full min-w-0 max-w-none gap-4 lg:h-full lg:min-h-0 ${fullScreen ? "" : "lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]"}`}>
           <aside className={fullScreen ? "hidden" : "hidden min-w-0 lg:block lg:h-full lg:min-h-0"}>
             <div className="flex h-full min-w-0 flex-col rounded-xl border border-border/75 bg-card p-3 shadow-sm">
               <div className="border-b border-border/60 px-2 pb-3">
@@ -2347,29 +2341,6 @@ function FiveSAuditExecution({
                                       }
                                     />
 
-                                    <input
-                                      ref={(
-                                        element
-                                      ) => {
-                                        cameraInputRefs.current[
-                                          question.id
-                                        ] =
-                                          element;
-                                      }}
-                                      type="file"
-                                      accept="image/*"
-                                      capture="environment"
-                                      className="hidden"
-                                      onChange={(
-                                        event
-                                      ) =>
-                                        handleEvidenceUpload(
-                                          question.id,
-                                          event
-                                        )
-                                      }
-                                    />
-
                                     <Button
                                       type="button"
                                       size="sm"
@@ -2386,21 +2357,7 @@ function FiveSAuditExecution({
                                       Upload Photo
                                     </Button>
 
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className="order-1 sm:order-2"
-                                      disabled={!questionUnlocked}
-                                      onClick={() =>
-                                        cameraInputRefs.current[
-                                          question.id
-                                        ]?.click()
-                                      }
-                                    >
-                                      <Camera className="mr-1.5 size-3.5" />
-                                      Take Photo
-                                    </Button>
+                                    <OpsCameraCapture disabled={!questionUnlocked} fileNamePrefix="audit-evidence" onCapture={(file) => createEvidenceFromFile(question.id, file)} trigger={(openCamera) => <Button type="button" size="sm" variant="outline" className="order-1 sm:order-2" disabled={!questionUnlocked} onClick={openCamera}><Camera className="mr-1.5 size-3.5" />Take Photo</Button>} />
                                   </div>
                                 </div>
 
@@ -2538,6 +2495,7 @@ function FiveSAuditExecution({
               )
             }
             onEvidenceUpload={(event) => handleEvidenceUpload(activeActionQuestion.id, event)}
+            onEvidenceFile={(file) => createEvidenceFromFile(activeActionQuestion.id, file)}
             onEvidenceRemove={(evidenceId) => removeEvidence(activeActionQuestion.id, evidenceId)}
             onEvidencePreview={(evidence) => { setPreviewZoom(1); setPreviewEvidence(evidence); }}
             saving={actionSaving}
@@ -2767,6 +2725,7 @@ interface ActionDialogProps {
     updates: Partial<QuestionState>
   ) => void;
   onEvidenceUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onEvidenceFile: (file: File) => void | Promise<void>;
   onEvidenceRemove: (evidenceId: string) => void;
   onEvidencePreview: (evidence: FiveSEvidence) => void;
   saving: boolean;
@@ -2780,6 +2739,7 @@ function ActionDialog({
   onCreate,
   onUpdate,
   onEvidenceUpload,
+  onEvidenceFile,
   onEvidenceRemove,
   onEvidencePreview,
   saving,
@@ -2788,7 +2748,6 @@ function ActionDialog({
   const actionCategories = useActiveActionCategories();
   const actionPriorities = useActiveActionPriorities();
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
-  const evidenceCameraRef = useRef<HTMLInputElement | null>(null);
   const requiresAction =
     state.score === 0 ||
     state.score === 1;
@@ -2924,9 +2883,8 @@ function ActionDialog({
                 </div>
                 {canEditCreatedAction && <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                   <input ref={evidenceInputRef} type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={onEvidenceUpload} />
-                  <input ref={evidenceCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onEvidenceUpload} />
                   <Button type="button" size="sm" variant="outline" className="order-2 flex-1 sm:order-1 sm:flex-none" onClick={() => evidenceInputRef.current?.click()}><Upload className="mr-1.5 size-3.5" />Upload Photo</Button>
-                  <Button type="button" size="sm" variant="outline" className="order-1 flex-1 sm:order-2 sm:flex-none" onClick={() => evidenceCameraRef.current?.click()}><Camera className="mr-1.5 size-3.5" />Take Photo</Button>
+                  <OpsCameraCapture fileNamePrefix="audit-action-evidence" onCapture={onEvidenceFile} trigger={(openCamera) => <Button type="button" size="sm" variant="outline" className="order-1 flex-1 sm:order-2 sm:flex-none" onClick={openCamera}><Camera className="mr-1.5 size-3.5" />Take Photo</Button>} />
                 </div>}
               </div>
               {state.evidence.length > 0 ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{state.evidence.map((evidence) => <div key={evidence.id} className="flex min-w-0 items-center gap-2 rounded-lg border bg-background p-2"><button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => onEvidencePreview(evidence)}>{evidence.type === "image" ? <img src={evidence.dataUrl} alt="" className="size-11 shrink-0 rounded object-cover" /> : <span className="grid size-11 shrink-0 place-items-center rounded bg-muted"><FileText className="size-5" /></span>}<span className="min-w-0"><span className="block truncate text-xs font-medium">{evidence.name}</span><span className="text-[10px] text-muted-foreground">{getEvidenceFileLabel(evidence)} · {formatEvidenceSize(evidence.size)}</span></span></button>{canEditCreatedAction && <Button type="button" size="icon-sm" variant="ghost" onClick={() => onEvidenceRemove(evidence.id)} aria-label={`Remove ${evidence.name}`}><Trash2 className="size-3.5" /></Button>}</div>)}</div> : requiresEvidence && <p className="mt-3 text-[11px] font-medium text-destructive">At least one evidence attachment is required for Non Compliance or Partial Compliance.</p>}

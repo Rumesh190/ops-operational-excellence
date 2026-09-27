@@ -119,7 +119,7 @@ function createEmptyFiveSSections(): FiveSSection[] {
     {
       category: "Sustain",
       description:
-        "Maintain 5S practices through discipline, monitoring, and continuous improvement.",
+        "Maintain 5S practices through discipline, monitoring, and continual improvement.",
       questions: [
         "Are employees following defined 5S standards?",
         "Are previous audit findings closed?",

@@ -10,13 +10,13 @@ export default function Page() {
     <PageContainer>
       <FiveSPageHeader
         eyebrow="OPS Workspace"
-        title="Continuous Improvement"
+        title="Continual Improvement"
         description="Capture improvement ideas, review proposals, track implementation, and measure realized benefits."
       />
       <ContinuousImprovementNav />
       <OpsEmptyState
         title="Settings coming soon"
-        description="Continuous Improvement module settings will be available in a future release."
+        description="Continual Improvement module settings will be available in a future release."
       />
     </PageContainer>
   );

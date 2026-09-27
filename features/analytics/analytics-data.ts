@@ -154,7 +154,7 @@ const DASHBOARD_OPTIONS: readonly AnalyticsDashboardOption[] = [
   { id: "audit", label: "Audit" },
   { id: "gemba", label: "Gemba" },
   { id: "redFlag", label: "Red Flag" },
-  { id: "continuousImprovement", label: "Continuous Improvement" },
+  { id: "continuousImprovement", label: "Continual Improvement" },
   { id: "actions", label: "Actions" },
   { id: "visualManagement", label: "Visual Management" },
 ] as const;
@@ -485,7 +485,7 @@ export function getExecutiveMetrics(context: AnalyticsSelectorContext): Analytic
   if (context.access.continuousImprovement) {
     const value = performanceForImprovement(context.improvements);
     const previous = performanceForImprovement(context.previousImprovements);
-    currentModuleScores.push({ id: "continuousImprovement", label: "Continuous Improvement", value, detail: value === null ? "No improvement activity" : "Pipeline progress", href: "/continuous-improvement" });
+    currentModuleScores.push({ id: "continuousImprovement", label: "Continual Improvement", value, detail: value === null ? "No improvement activity" : "Pipeline progress", href: "/continuous-improvement" });
     if (previous !== null) previousScores.push(previous);
   }
   if (context.access.redFlag) {
@@ -571,7 +571,7 @@ export function getActionMetrics(context: AnalyticsSelectorContext): AnalyticsVi
   const closureTimes = completed.flatMap((item) => item.completedAt ? [closureHours(item.createdAt, item.completedAt)] : []).filter(Boolean);
   const sourceData = groupCount(context.actions, (item) => {
     const source = actionModule(item);
-    return source === "continuousImprovement" ? "Continuous Improvement" : source === "redFlag" ? "Red Flag" : source === "visualManagement" ? "Visual Management" : source === "visualImprovement" ? "Legacy Improvement" : source === "gemba" ? "Gemba" : source === "audit" ? "Audit" : "Manual";
+    return source === "continuousImprovement" ? "Continual Improvement" : source === "redFlag" ? "Red Flag" : source === "visualManagement" ? "Visual Management" : source === "visualImprovement" ? "Legacy Improvement" : source === "gemba" ? "Gemba" : source === "audit" ? "Audit" : "Manual";
   });
   const statusData = groupCount(context.actions, (item) => item.status);
   const priorityData = groupCount(context.actions, (item) => item.priority);
@@ -646,7 +646,7 @@ export function getContinuousImprovementMetrics(context: AnalyticsSelectorContex
   );
   const savingsDelta = completedProposed ? Math.round(((actual - completedProposed) / completedProposed) * 100) : null;
   return {
-    id: "continuousImprovement", label: "Continuous Improvement", description: "Idea flow, implementation progress, and realized value.",
+    id: "continuousImprovement", label: "Continual Improvement", description: "Idea flow, implementation progress, and realized value.",
     kpiRows: [[
       kpi("ci-submitted", "Ideas Submitted", submitted.length, "Excludes drafts", "info", "/continuous-improvement"),
       kpi("ci-approval", "Approval Rate", reviewed.length ? `${Math.round((approved.length / reviewed.length) * 100)}%` : "—", `${reviewed.length} reviewed ideas`, "success"),

@@ -12,6 +12,7 @@ import {
 export type ActionCenterTab = "my-actions" | "created-by-me" | "team-actions" | "awaiting-review" | "completed";
 export type ActionStatusFilter = "All" | "Open" | "Overdue" | MyActionStatus;
 export type ActionDueFilter = "All" | "Overdue" | "Today" | "Tomorrow" | "Next 7 days";
+export type ActionQuickFilter = "open" | "overdue";
 
 export interface ActionCenterFilters {
   search: string;
@@ -68,6 +69,10 @@ export function getActionsForTab(actions: MyAction[], tab: ActionCenterTab, user
   return visible.filter((action) => action.status === "Completed");
 }
 
+export function matchesActionQuickFilter(action: MyAction, filter: ActionQuickFilter, now = new Date()) {
+  return filter === "open" ? action.status !== "Completed" : isActionOverdue(action, now);
+}
+
 function dueDays(action: MyAction, now: Date) {
   const due = new Date(`${action.dueDate}T00:00:00`);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -80,8 +85,8 @@ export function filterActionCenterItems(actions: MyAction[], filters: ActionCent
     const matchesSearch = !query || [action.id, action.title, action.description, action.sourceTitle, action.sourceId, action.plant, action.area, action.responsiblePersonName, action.assignedTo].some((value) => value?.toLowerCase().includes(query));
     const matchesSource = filters.source === "All" || inferActionSourceModule(action) === filters.source;
     const matchesStatus = filters.status === "All" ||
-      (filters.status === "Open" && action.status !== "Completed") ||
-      (filters.status === "Overdue" && isActionOverdue(action, now)) ||
+      (filters.status === "Open" && matchesActionQuickFilter(action, "open", now)) ||
+      (filters.status === "Overdue" && matchesActionQuickFilter(action, "overdue", now)) ||
       action.status === filters.status;
     const matchesPriority = filters.priority === "All" || action.priority === filters.priority;
     const matchesPlant = filters.plant === "All" || action.plant === filters.plant;
@@ -103,8 +108,8 @@ export function getActionCenterCounts(actions: MyAction[], user: DemoUser, admin
   const tabs = Object.fromEntries(ACTION_CENTER_TABS.map((tab) => [tab.id, getActionsForTab(actions, tab.id, user, adminUser).length])) as Record<ActionCenterTab, number>;
   return {
     tabs,
-    open: visible.filter((action) => action.status !== "Completed").length,
-    overdue: visible.filter((action) => isActionOverdue(action, now)).length,
+    open: visible.filter((action) => matchesActionQuickFilter(action, "open", now)).length,
+    overdue: visible.filter((action) => matchesActionQuickFilter(action, "overdue", now)).length,
     critical: visible.filter((action) => action.status !== "Completed" && action.priority === "Critical").length,
     awaitingReview: visible.filter((action) => ACTION_REVIEW_STATUSES.includes(action.status)).length,
     completedThisMonth: visible.filter((action) => {
