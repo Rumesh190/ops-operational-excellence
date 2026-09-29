@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, LayoutPanelTop, Layers3, BarChart3 } from "lucide-react";
+import { ArrowRight, LayoutPanelTop, Layers3, BarChart3, Target } from "lucide-react";
 import { PageContainer } from "@/components/layout/page-container";
 import FiveSPageHeader from "@/features/five-s/components/FiveSPageHeader";
 import { useSettingsAccess, SettingsAccessDenied } from "@/features/settings/settings-access";
@@ -26,6 +26,12 @@ export default function Page() {
   }
 
   const items = [
+    {
+      label: "KPI Configuration",
+      href: "/visual-management/settings/kpi-configuration",
+      icon: Target,
+      description: "Define Unit and Functional KPI hierarchy",
+    },
     {
       label: "Boards",
       href: "/visual-management/settings/boards",

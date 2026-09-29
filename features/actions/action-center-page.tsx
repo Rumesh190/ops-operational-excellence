@@ -36,6 +36,7 @@ import {
   formatShortDate,
   getActionDueLabel,
   getActionSourceDefinition,
+  getActionSourceRecordLabel,
   getActionUpdatedAt,
   getEnabledActionSources,
   isActionOverdue,
@@ -205,7 +206,7 @@ function ActionTableRow({ action, reviewMode, onOpen, onReport }: { action: MyAc
   const overdue = isActionOverdue(action);
   return <tr className="transition-colors hover:bg-muted/25">
     <td className="max-w-[300px] px-4 py-3"><button type="button" onClick={onOpen} className="block min-w-0 text-left outline-none focus-visible:underline"><span className="block truncate font-medium">{action.title}</span><span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">{action.id}</span></button></td>
-    <td className="max-w-[190px] px-4 py-3"><SourceBadge action={action} /><p className="mt-1 truncate text-[11px] text-muted-foreground" title={action.sourceId ?? action.sourceTitle}>{action.sourceId ?? action.sourceTitle}</p></td>
+    <td className="max-w-[190px] px-4 py-3"><SourceBadge action={action} /><p className="mt-1 truncate text-[11px] text-muted-foreground" title={getActionSourceRecordLabel(action)}>{getActionSourceRecordLabel(action)}</p></td>
     <td className="max-w-[150px] px-4 py-3"><p className="truncate text-xs font-medium">{action.responsiblePersonName ?? action.assignedTo ?? "Unassigned"}</p><p className="mt-0.5 truncate text-[11px] text-muted-foreground">{action.area}</p></td>
     <td className="px-4 py-3"><Badge variant={priority.variant} size="sm">{priority.label}</Badge></td>
     <td className="px-4 py-3"><p className={cn("whitespace-nowrap text-xs font-medium", overdue && "text-red-600 dark:text-red-400")}>{reviewMode ? getReviewAgeLabel(action) : getActionDueLabel(action)}</p>{reviewMode && <p className="mt-0.5 text-[10px] text-muted-foreground">{formatShortDate(action.submittedForReviewAt ?? getActionUpdatedAt(action))}</p>}</td>

@@ -110,7 +110,7 @@ describe("Gemba → canonical Action traceability", () => {
   });
 
   it("renders the canonical Action detail with one compact, clickable Gemba source reference", () => {
-    expect(detailSource).toContain('[source.label, action.sourceId ?? action.sourceTitle, action.sourceObservationId].filter(Boolean).join(" · ")');
+    expect(detailSource).toContain("getActionSourceRecordLabel(action)");
     expect(detailSource).toContain('render={<Link href={sourceHref} />}');
     expect(detailSource).toContain("action.sourceObservation ?? action.originalFinding ?? action.description");
   });

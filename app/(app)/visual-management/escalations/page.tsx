@@ -1,5 +1,5 @@
-import EscalationsPage from "@/features/visual-management/escalations-page";
+import { permanentRedirect } from "next/navigation";
 
 export default function Page() {
-  return <EscalationsPage />;
+  permanentRedirect("/visual-management");
 }

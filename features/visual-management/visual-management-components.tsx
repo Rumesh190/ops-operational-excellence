@@ -25,7 +25,6 @@ export function VisualManagementNav() {
     { id: "overview", label: "Overview", href: "/visual-management" },
     { id: "boards", label: "Boards", href: "/visual-management/boards" },
     { id: "meetings", label: "Meetings", href: "/visual-management/meetings" },
-    { id: "escalations", label: "Escalations", href: "/visual-management/escalations" },
     { id: "settings", label: "Settings", href: "/visual-management/settings" },
   ];
   const active = items.find((item) => item.href !== "/visual-management" && pathname.startsWith(item.href))?.id ?? "overview";
@@ -40,6 +39,7 @@ export function MeetingStatusBadge({ status }: { status: VisualManagementMeeting
   return <StatusBadge status={status} />;
 }
 
+/** Compatibility-only presentation for historical records; active VM routes do not render it. */
 export function EscalationStatusBadge({ status }: { status: VisualManagementEscalationStatus }) {
   return <StatusBadge status={status} />;
 }

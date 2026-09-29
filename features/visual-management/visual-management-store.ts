@@ -8,6 +8,7 @@ import { safeSetStorage } from "@/lib/browser-storage";
 import { getOrganizationPlants, getOrganizationZones, useOrganizationConfiguration } from "@/lib/organization-store";
 import { createDefaultKpiEntries, nextTier } from "./visual-management-config";
 import { getVisualManagementConfiguration, useVisualManagementConfiguration } from "./visual-management-configuration-store";
+import { createMeetingKpiReviewSnapshots } from "./kpi-execution-store";
 import type {
   VisualManagementBoard,
   VisualManagementDecision,
@@ -167,6 +168,7 @@ export function startVisualManagementMeeting(boardId: string, actor: VisualManag
     participants: attendance(selected.members),
     startedAt: new Date().toISOString(),
     kpiEntries: selected.sections.map((item) => ({ ...item, evidence: item.evidence?.map((evidence) => ({ ...evidence })) })),
+    configuredKpiReviews: createMeetingKpiReviewSnapshots(`VMM-${year}-${String(number).padStart(3, "0")}`, selected.id, actor.id),
     topicIds: [], decisionIds: [], actionIds: [], redFlagIds: [], continuousImprovementIds: [], gembaIds: [], escalationIds: [],
     status: "In Progress",
   };

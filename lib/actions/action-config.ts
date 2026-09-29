@@ -83,7 +83,9 @@ export function getActionSourceHref(action: MyAction) {
   if (moduleId === "continuousImprovement") return `/continuous-improvement/${encodeURIComponent(sourceId)}`;
   if (moduleId === "redFlag") return sourceId.startsWith("RF-") ? `/red-flag/${encodeURIComponent(sourceId)}` : `/5s/red/${encodeURIComponent(sourceId)}`;
   if (moduleId === "redTag") return `/5s/red/${encodeURIComponent(sourceId)}`;
-  if (moduleId === "visualManagement") return `/visual-management/meetings/${encodeURIComponent(sourceId)}`;
+  if (moduleId === "visualManagement") return action.visualManagementSource?.boardId
+    ? `/visual-management/boards/${encodeURIComponent(action.visualManagementSource.boardId)}`
+    : `/visual-management/meetings/${encodeURIComponent(sourceId)}`;
   if (moduleId === "visualImprovement") return `/visual-improvement/${encodeURIComponent(sourceId)}`;
   if (moduleId === "gemba") {
     const href = `/gemba/${encodeURIComponent(sourceId)}`;
@@ -94,6 +96,13 @@ export function getActionSourceHref(action: MyAction) {
     return auditId ? `/5s/audits/${encodeURIComponent(auditId)}/report` : "/audits";
   }
   return undefined;
+}
+
+export function getActionSourceRecordLabel(action: MyAction) {
+  if (inferActionSourceModule(action) === "visualManagement" && action.visualManagementSource) {
+    return `${action.visualManagementSource.kpiNameSnapshot} · ${action.visualManagementSource.boardNameSnapshot} · ${action.visualManagementSource.reportingPeriod.label}`;
+  }
+  return action.sourceId ?? action.sourceTitle;
 }
 
 export function getEnabledActionSources(access: Record<AccessCapabilityId, boolean>) {

@@ -66,18 +66,18 @@ describe("Visual Management module migration", () => {
     expect(VISUAL_MANAGEMENT_INITIAL_STATE.boards.every((board) => board.sections.map((entry) => entry.section).join() === VISUAL_MANAGEMENT_SECTIONS.join())).toBe(true);
   });
 
-  it("keeps meeting mode on one collapsible surface with the required sections", () => {
+  it("keeps meeting mode focused on KPI review, actions, and discussion", () => {
     const meetingModeSource = readFileSync(resolve(process.cwd(), "features/visual-management/meeting-mode-page.tsx"), "utf8");
     expect(meetingModeSource).toContain("<details open");
     expect(meetingModeSource).toContain('title="Attendance"');
     expect(meetingModeSource).toContain('title="KPI Review"');
     expect(meetingModeSource).toContain('title="Previous Actions"');
     expect(meetingModeSource).toContain("Today&apos;s Discussion");
-    expect(meetingModeSource).toContain('title="Decisions"');
-    expect(meetingModeSource).toContain('title="Escalations"');
+    expect(meetingModeSource).not.toContain('title="Decisions"');
+    expect(meetingModeSource).not.toContain('title="Escalations"');
   });
 
-  it("supports meeting creation, attendance, KPI updates, topics, escalation, decisions, and completion", async () => {
+  it("preserves legacy escalation and decision records for compatibility while meetings remain completable", async () => {
     const values = new Map<string, string>();
     vi.stubGlobal("window", { localStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) } });
     vi.resetModules();

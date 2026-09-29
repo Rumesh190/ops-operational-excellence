@@ -8,7 +8,6 @@ export const ROUTE_LABELS: Record<string, string> = {
   "/visual-management": "Visual Management",
   "/visual-management/boards": "Boards",
   "/visual-management/meetings": "Meetings",
-  "/visual-management/escalations": "Escalations",
   "/visual-improvement": "Legacy Improvement",
   "/gemba": "Gemba",
   "/analytics": "Analytics",

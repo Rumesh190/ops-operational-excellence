@@ -4,7 +4,7 @@ import { filterActionCenterItems, getActionsForTab, getRoleVisibleActions } from
 import type { MyAction } from "@/features/five-s/types/my-actions";
 import { ADMIN_USER_SEEDS } from "@/features/five-s/administration/store";
 import { DEMO_USERS } from "@/lib/current-user";
-import { getActionSourceHref, getEnabledActionSources, normalizeActionSource, sortActionsByUrgency } from "@/lib/actions/action-config";
+import { getActionSourceHref, getActionSourceRecordLabel, getEnabledActionSources, normalizeActionSource, sortActionsByUrgency } from "@/lib/actions/action-config";
 import type { AccessCapabilityId } from "@/lib/modules";
 
 function action(overrides: Partial<MyAction> = {}): MyAction {
@@ -68,6 +68,13 @@ describe("Action Center source traceability and queues", () => {
   it("deep-links Visual Management and legacy Visual Improvement actions to real source routes", () => {
     expect(getActionSourceHref(action({ source: "Visual Management", sourceModule: "visualManagement", sourceId: "VMM / 14" }))).toBe("/visual-management/meetings/VMM%20%2F%2014");
     expect(getActionSourceHref(action({ source: "Visual Improvement", sourceModule: "visualImprovement", sourceId: "VI / 14" }))).toBe("/visual-improvement/VI%20%2F%2014");
+  });
+
+  it("uses human-readable VM KPI context while retaining exact structured source references", () => {
+    const vmAction = action({ source: "Visual Management", sourceModule: "visualManagement", sourceId: "VM-ZA-T1", sourceObservationId: "VMKD-1", visualManagementSource: { boardId: "VM-ZA-T1", configuredKpiId: "VMK-U-1", actualEntryId: "VMKAE-1", deviationId: "VMKD-1", reportingPeriod: { type: "monthly", key: "2026-11", label: "November 2026" }, boardNameSnapshot: "Zone A Daily Management", kpiNameSnapshot: "First Pass Yield", actualValueSnapshot: 92, targetSnapshot: 98, measurementSnapshot: "percentage", statusSnapshot: "red", deviationSnapshot: "Yield loss" } });
+    expect(getActionSourceRecordLabel(vmAction)).toBe("First Pass Yield · Zone A Daily Management · November 2026");
+    expect(getActionSourceHref(vmAction)).toBe("/visual-management/boards/VM-ZA-T1");
+    expect(vmAction.visualManagementSource).toMatchObject({ boardId: "VM-ZA-T1", configuredKpiId: "VMK-U-1", actualEntryId: "VMKAE-1", deviationId: "VMKD-1" });
   });
 
   it("applies dashboard-compatible overdue and source filters", () => {

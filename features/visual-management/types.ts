@@ -95,6 +95,8 @@ export interface VisualManagementMeeting {
   startedAt: string;
   completedAt?: string;
   kpiEntries: VisualManagementKpiEntry[];
+  /** Immutable Phase 2 configured-KPI snapshots captured when the meeting starts. */
+  configuredKpiReviews?: import("./kpi-execution-store").MeetingKpiReviewSnapshot[];
   topicIds: string[];
   decisionIds: string[];
   actionIds: string[];

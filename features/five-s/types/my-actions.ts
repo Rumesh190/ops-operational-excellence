@@ -93,6 +93,21 @@ export interface MyActionEvidence {
   url?: string;
 }
 
+export interface VisualManagementActionSource {
+  boardId: string;
+  configuredKpiId: string;
+  actualEntryId: string;
+  deviationId: string;
+  reportingPeriod: { type: "daily" | "weekly" | "monthly" | "custom"; key: string; label: string };
+  boardNameSnapshot: string;
+  kpiNameSnapshot: string;
+  actualValueSnapshot: number;
+  targetSnapshot: number;
+  measurementSnapshot: "count" | "percentage" | "number";
+  statusSnapshot: "amber" | "red";
+  deviationSnapshot: string;
+}
+
 export interface MyAction {
   id: string;
 
@@ -118,6 +133,8 @@ export interface MyAction {
   sourceLocation?: string;
   sourceObservationId?: string;
   sourceObservation?: string;
+  /** Exact VM references plus immutable display snapshots for KPI-created Actions. */
+  visualManagementSource?: VisualManagementActionSource;
 
   category?: string;
 

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { MyAction, MyActionEvidence, MyActionPriority } from "@/features/five-s/types/my-actions";
+import type { MyAction, MyActionEvidence, MyActionPriority, VisualManagementActionSource } from "@/features/five-s/types/my-actions";
 import { createAction, rollbackCreatedAction } from "@/lib/actions/action-store";
 import { useCurrentUser } from "@/lib/current-user";
 import { getFiveSZoneConfiguration } from "@/lib/five-s/configuration";
@@ -20,6 +20,8 @@ export interface LinkedActionContext {
   source: "Gemba" | "Red Flag" | "Red Tag" | "Visual Management" | "Visual Improvement" | "Continuous Improvement";
   sourceModule: "gemba" | "redFlag" | "redTag" | "visualManagement" | "visualImprovement" | "continuousImprovement";
   sourceId: string;
+  sourceTitle?: string;
+  sourceRecordLabel?: string;
   sourceObservationId?: string;
   sourceObservation: string;
   title: string;
@@ -32,6 +34,7 @@ export interface LinkedActionContext {
   hidePriority?: boolean;
   defaultResponsibleId?: string;
   defaultDueDate?: string;
+  visualManagementSource?: VisualManagementActionSource;
 }
 
 export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreated }: {
@@ -64,13 +67,14 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
       title: context.title,
       description: context.description,
       source: context.source,
-      sourceTitle: context.sourceId,
+      sourceTitle: context.sourceTitle ?? context.sourceId,
       sourceModule: context.sourceModule,
       sourceId: context.sourceId,
       sourceLabel: context.source,
       sourceLocation: `${context.plant} · ${context.zone} · ${context.location}`,
       sourceObservationId: context.sourceObservationId,
       sourceObservation: context.sourceObservation,
+      visualManagementSource: context.visualManagementSource,
       originalFinding: context.sourceObservation,
       plant: context.plant,
       department: zone.department,
@@ -115,7 +119,7 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
         <div className="grid gap-6">
           <div className="rounded-lg border bg-muted/25 p-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Source context · read-only</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant={context.source === "Red Flag" ? "danger" : "info"}>{context.source}</Badge><span className="font-mono text-xs text-muted-foreground">{context.sourceId}</span>{context.sourceObservationId && <span className="font-mono text-xs text-muted-foreground">{context.sourceObservationId}</span>}{context.defaultPriority && <Badge variant={context.defaultPriority === "Critical" || context.defaultPriority === "High" ? "danger" : context.defaultPriority === "Medium" ? "warning" : "secondary"}>{context.defaultPriority} context</Badge>}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant={context.source === "Red Flag" ? "danger" : "info"}>{context.source}</Badge>{context.sourceRecordLabel ? <span className="text-xs font-medium text-muted-foreground">{context.sourceRecordLabel}</span> : <><span className="font-mono text-xs text-muted-foreground">{context.sourceId}</span>{context.sourceObservationId && <span className="font-mono text-xs text-muted-foreground">{context.sourceObservationId}</span>}</>}{context.defaultPriority && <Badge variant={context.defaultPriority === "Critical" || context.defaultPriority === "High" ? "danger" : context.defaultPriority === "Medium" ? "warning" : "secondary"}>{context.defaultPriority} context</Badge>}</div>
             <p className="mt-2 text-sm font-semibold">{context.title}</p>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{context.description}</p>
             <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Link2 className="size-3.5" />{context.zone} · {context.location} · {context.evidence.length} evidence photo{context.evidence.length === 1 ? "" : "s"}</p>
