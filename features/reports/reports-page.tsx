@@ -38,6 +38,7 @@ import { useGembaStore } from "@/features/gemba/gemba-store";
 import { visibleGembaWalks } from "@/features/gemba/gemba-access";
 import { visibleRedFlags } from "@/features/red-flag/red-flag-access";
 import { useRedFlagStore } from "@/features/red-flag/red-flag-store";
+import { useRedTags } from "@/features/five-s/red-tag/store";
 import { useVisualManagementStore } from "@/features/visual-management/visual-management-store";
 import { visibleVisualManagementBoards, visibleVisualManagementMeetings } from "@/features/visual-management/visual-management-access";
 import { useActionStore } from "@/lib/actions/action-store";
@@ -67,7 +68,7 @@ const DEFAULT_FILTERS: ReportLibraryFilters = {
 function validTab(value: string | undefined): ReportTab {
   const aliases: Record<string, ReportTab> = { audits: "audit", improvements: "continuousImprovement" };
   const normalized = value ? aliases[value] ?? value : "all";
-  return ["all", "audit", "actions", "continuousImprovement", "redFlag", "visualManagement", "gemba"].includes(normalized) ? normalized as ReportTab : "all";
+  return ["all", "audit", "actions", "continuousImprovement", "redTag", "visualManagement", "gemba"].includes(normalized) ? normalized as ReportTab : "all";
 }
 
 function ExportMenu({ exportVisibleList, hasReports }: { exportVisibleList: () => void; hasReports: boolean }) {
@@ -99,6 +100,7 @@ export default function ReportsPage({ initialTab, initialSearch = "", initialSor
   const allActions = useActionStore();
   const allImprovements = useImprovements();
   const allRedFlags = useRedFlagStore();
+  const redTags = useRedTags();
   const visualManagement = useVisualManagementStore();
   const allGemba = useGembaStore();
   const enabledModules = getEnabledReportModules(access);
@@ -134,6 +136,7 @@ export default function ReportsPage({ initialTab, initialSearch = "", initialSor
       audits,
       actions: access.actions ? actions : [],
       improvements: access.continuousImprovement ? improvements : [],
+      redTags: access.redTag ? redTags : [],
       redFlags: access.redFlag ? redFlags : [],
       visualManagement: access.visualManagement ? visibleVisualManagement : { ...visibleVisualManagement, boards: [], meetings: [], topics: [], decisions: [], escalations: [] },
       gemba: {
@@ -141,7 +144,7 @@ export default function ReportsPage({ initialTab, initialSearch = "", initialSor
         observations: access.gemba ? allGemba.observations.filter((observation) => walkIds.has(observation.gembaId)) : [],
       },
     };
-  }, [access, adminUser, allActions, allGemba, allImprovements, allRedFlags, audits, currentUser, visualManagement]);
+  }, [access, adminUser, allActions, allGemba, allImprovements, allRedFlags, audits, currentUser, redTags, visualManagement]);
 
   const library = useMemo(() => buildReportLibrary({ ...sources, access }), [access, sources]);
   const visibleReports = useMemo(() => filterReportLibrary(library, {

@@ -1,5 +1,5 @@
 export const KPI_LEVELS = ["unit", "functional"] as const;
-export const KPI_BUCKETS = ["safety", "quality", "cost", "delivery", "people", "environment"] as const;
+export const KPI_BUCKETS = ["safety", "quality", "cost", "delivery", "people", "environment", "morale", "5s", "custom"] as const;
 export const KPI_INDICATOR_TYPES = ["leading", "lagging"] as const;
 export const KPI_MEASUREMENT_TYPES = ["count", "percentage", "number"] as const;
 export const KPI_DIRECTIONS = ["higher_is_better", "lower_is_better", "target_exactly"] as const;
@@ -71,12 +71,17 @@ export interface VisualManagementKpiDefinition {
   ownerUserId?: string;
   reviewFrequency?: KpiReviewFrequency;
   relationshipExplanation?: string;
+  /** Simplified Daily Management metadata. Optional for legacy KPI records. */
+  simpleMetricType?: "numeric" | "event";
+  unit?: string;
+  eventCategories?: string[];
+  aggregation?: "average" | "sum" | "latest";
   status: "active" | "archived";
   createdAt: string;
   updatedAt: string;
 }
 
-export const KPI_BUCKET_LABELS: Record<KpiBucket, string> = { safety: "Safety", quality: "Quality", cost: "Cost", delivery: "Delivery", people: "People", environment: "Environment" };
+export const KPI_BUCKET_LABELS: Record<KpiBucket, string> = { safety: "Safety", quality: "Quality", cost: "Cost", delivery: "Delivery", people: "People", environment: "Environment", morale: "Morale", "5s": "5S", custom: "Custom" };
 export const KPI_INDICATOR_TYPE_LABELS: Record<KpiIndicatorType, string> = { leading: "Leading Indicator", lagging: "Lagging Indicator" };
 export const KPI_DIRECTION_LABELS: Record<KpiDirection, string> = { higher_is_better: "Higher is better", lower_is_better: "Lower is better", target_exactly: "Target exactly" };
 export const KPI_MEASUREMENT_LABELS: Record<KpiMeasurementType, string> = { count: "Count", percentage: "Percentage", number: "Number" };

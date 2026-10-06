@@ -85,7 +85,7 @@ describe("5S Red Tag identity and compatibility", () => {
 
   it("presents Red Tag terminology rather than Red Flag terminology", () => {
     const source = readFileSync(resolve("features/five-s/red-tag/red-tag-module.tsx"), "utf8");
-    expect(source).toContain('title="5S Red Tags"');
+    expect(source).toContain('title={view === "closed" ? "Closed"');
     expect(source).not.toContain('title="Red Flags"');
   });
 

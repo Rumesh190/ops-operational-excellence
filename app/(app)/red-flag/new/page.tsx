@@ -1,3 +1,3 @@
-import RedFlagNewPage from "@/features/red-flag/red-flag-new-page";
+import { redirect } from "next/navigation";
 
-export default function Page() { return <RedFlagNewPage />; }
+export default function Page() { redirect("/5s/red/create"); }

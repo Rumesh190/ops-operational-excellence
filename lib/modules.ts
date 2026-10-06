@@ -68,19 +68,6 @@ export const OPERATIONAL_MODULES: readonly OperationalModule[] = [
     order: 10,
   },
   {
-    id: "redFlag",
-    label: "Red Flag",
-    route: "/red-flag",
-    description: "Identify and escalate operational abnormalities.",
-    icon: Flag,
-    enabled: true,
-    group: "operations",
-    navigationGroup: "operationalExcellence",
-    conceptStage: "identify",
-    stageLabel: "Identify",
-    order: 20,
-  },
-  {
     id: "redTag",
     label: "Red Tag",
     route: "/5s/red",
@@ -160,7 +147,13 @@ export const LEGACY_MODULES = [
   },
 ] as const;
 
-const ALL_ACCESS_CAPABILITIES = [...ACCESS_CAPABILITIES, ...LEGACY_SHARED_CAPABILITIES, ...LEGACY_MODULES] as const;
+/** Compatibility-only: retained for stored entitlements, old URLs, Actions, and relationships. */
+const LEGACY_OPERATIONAL_MODULES: readonly OperationalModule[] = [{
+  id: "redFlag", label: "Red Flag", route: "/red-flag", description: "Historical operational abnormality records.", icon: Flag,
+  enabled: false, group: "operations", navigationGroup: "operationalExcellence", conceptStage: "identify", stageLabel: "Identify", order: 20,
+}];
+
+const ALL_ACCESS_CAPABILITIES = [...ACCESS_CAPABILITIES, ...LEGACY_OPERATIONAL_MODULES, ...LEGACY_SHARED_CAPABILITIES, ...LEGACY_MODULES] as const;
 
 export const NAVIGATION_GROUPS: ReadonlyArray<{ id: NavigationGroupId; label: string; order: number }> = [
   { id: "overview", label: "Overview", order: 0 },
@@ -194,7 +187,7 @@ export const DEFAULT_MODULE_ENTITLEMENTS: Record<AccessCapabilityId, boolean> =
   >;
 
 export function getOperationalModule(id: OperationalModuleId) {
-  return OPERATIONAL_MODULES.find((module) => module.id === id)!;
+  return [...OPERATIONAL_MODULES, ...LEGACY_OPERATIONAL_MODULES].find((module) => module.id === id)!;
 }
 
 export function getAccessCapability(id: AccessCapabilityId) {

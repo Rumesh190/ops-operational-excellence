@@ -64,7 +64,7 @@ describe("Gemba dialog layout polish — Create Action from Gemba", () => {
   });
 
   it("still renders every existing Action field with no field removed", () => {
-    for (const label of ["Priority *", "Due Date", "Action Category *", "Action Owner *", "Zone Leader", "Assigned By"]) {
+    for (const label of ["Priority *", "Due Date", "Action Category *", "Responsible *", "Zone Leader", "Assigned By"]) {
       expect(createActionDialogSource).toContain(label);
     }
   });
@@ -79,8 +79,9 @@ describe("Gemba dialog layout polish — Create Action from Gemba", () => {
     expect(createActionDialogSource).toMatch(/label="Assigned By" derived>*<Input value=\{currentUser\.name\} disabled/);
   });
 
-  it("keeps Cancel and Create Action in the footer with unchanged enablement logic", () => {
-    expect(createActionDialogSource).toContain("disabled={!context || !category || !responsibleId || busy}");
+  it("keeps Create Action clickable for field-level validation and disables only while busy", () => {
+    expect(createActionDialogSource).toContain("disabled={busy}");
+    expect(createActionDialogSource).toContain('setError("Responsible person is required.")');
     expect(createActionDialogSource).toContain(">Cancel</Button>");
   });
 });

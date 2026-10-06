@@ -31,7 +31,6 @@ describe("OPS UX consistency layer", () => {
     expect(ACTION_PRIORITY_CONFIG.Low.variant).toBe(OPS_PRIORITY.Low.variant);
     expect(ACTION_SOURCE_CONFIG.map(({ id, label }) => ({ id, label }))).toEqual([
       { id: "gemba", label: OPS_SOURCE_LABELS.gemba },
-      { id: "redFlag", label: OPS_SOURCE_LABELS.redFlag },
       { id: "redTag", label: OPS_SOURCE_LABELS.redTag },
       { id: "continuousImprovement", label: OPS_SOURCE_LABELS.continuousImprovement },
       { id: "audit", label: OPS_SOURCE_LABELS.audit },
@@ -69,7 +68,8 @@ describe("OPS UX consistency layer", () => {
     expect(source("features/red-flag/red-flag-components.tsx")).toContain("OpsTimeline");
     expect(source("features/five-s/continuous-improvement/components.tsx")).toContain("OpsTimeline");
     expect(source("features/gemba/gemba-detail-page.tsx")).toContain("OpsTimeline");
-    expect(source("features/five-s/action-detail-page.tsx")).toContain("OpsTimeline");
+    expect(source("features/five-s/action-detail-page.tsx")).toContain("LifecycleTimeline");
+    expect(source("features/five-s/action-detail-page.tsx")).not.toContain("ActivityTimeline");
     for (const path of ["features/gemba/gemba-components.tsx", "features/red-flag/red-flag-components.tsx", "features/five-s/continuous-improvement/components.tsx"]) expect(source(path)).toContain("OpsEvidenceViewer");
   });
 

@@ -1,6 +1,3 @@
-import RedFlagDetailPage from "@/features/red-flag/red-flag-detail-page";
+import { redirect } from "next/navigation";
 
-export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
-  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
-  return <RedFlagDetailPage flagId={id} initialTab={tab} />;
-}
+export default function Page() { redirect("/5s/red"); }

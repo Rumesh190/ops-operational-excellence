@@ -10,23 +10,24 @@ function source(path: string) {
 }
 
 describe("Red Tag first-class OPS module", () => {
-  it("registers Red Tag independently below Red Flag with its canonical route", () => {
+  it("registers Red Tag as the sole active item-control module while retaining Red Flag compatibility", () => {
     const redFlag = getOperationalModule("redFlag");
     const redTag = getOperationalModule("redTag");
     expect(redTag).toMatchObject({ id: "redTag", label: "Red Tag", route: "/5s/red", stageLabel: "Item Disposition", enabled: true, order: 25 });
     expect(redTag.id).not.toBe(redFlag.id);
     expect(redTag.route).not.toBe(redFlag.route);
-    expect(OPERATIONAL_MODULES.map((item) => item.id)).toEqual(["gemba", "redFlag", "redTag", "continuousImprovement", "audit", "visualManagement"]);
+    expect(OPERATIONAL_MODULES.map((item) => item.id)).toEqual(["gemba", "redTag", "continuousImprovement", "audit", "visualManagement"]);
+    expect(redFlag.enabled).toBe(false);
   });
 
   it("shows or hides only Red Tag from centralized entitlements", () => {
     const enabled = getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS, redTag: true });
-    expect(enabled.find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).toEqual(["gemba", "redFlag", "redTag", "continuousImprovement", "audit"]);
+    expect(enabled.find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).toEqual(["gemba", "redTag", "continuousImprovement", "audit"]);
 
     const disabled = getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS, redTag: false });
     const ids = disabled.find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id);
     expect(ids).not.toContain("redTag");
-    expect(ids).toContain("redFlag");
+    expect(ids).not.toContain("redFlag");
   });
 
   it("keeps Red Tag active across landing, detail, print, and settings routes", () => {
@@ -46,7 +47,7 @@ describe("Red Tag first-class OPS module", () => {
     expect(layout).not.toContain('<ModuleGate id="redFlag">');
     expect(superAdmin).toContain('capabilities={OPERATIONAL_MODULES}');
     expect(superAdmin).toContain("saveOrganizationAccess(organizationId, draft)");
-    expect(settingsAccess).toContain('["gemba", "redFlag", "redTag", "continuousImprovement", "audit"]');
+    expect(settingsAccess).toContain('["gemba", "redTag", "continuousImprovement", "audit"]');
     expect(sidebar).toContain("getEnabledNavigationGroups(entitlements)");
   });
 });

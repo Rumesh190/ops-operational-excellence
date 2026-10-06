@@ -1,6 +1,3 @@
-import RedFlagPage from "@/features/red-flag/red-flag-page";
+import { redirect } from "next/navigation";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; status?: string; severity?: string }> }) {
-  const { tab, status, severity } = await searchParams;
-  return <RedFlagPage initialTab={tab} initialStatus={status} initialSeverity={severity} />;
-}
+export default function Page() { redirect("/5s/red"); }

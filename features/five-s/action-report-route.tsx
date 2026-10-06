@@ -6,8 +6,10 @@ import { getRoleVisibleActions } from "@/features/actions/action-center-data";
 import { useAdminUsers } from "@/features/five-s/administration/store";
 import { useActionStore } from "@/lib/actions/action-store";
 import { useCurrentUser } from "@/lib/current-user";
+import { useRedTags } from "./red-tag/store";
+import { resolveActionSourceBeforeEvidence } from "@/lib/actions/action-evidence";
 
-import FiveSActionReportPage from "./action-report-page";
+import CanonicalActionReportPage from "@/features/reports/canonical-action-report-page";
 
 interface FiveSActionReportRouteProps {
   actionId: string;
@@ -22,6 +24,7 @@ export default function FiveSActionReportRoute({
 }: FiveSActionReportRouteProps) {
   const router = useRouter();
   const actions = useActionStore();
+  const redTags = useRedTags();
   const currentUser = useCurrentUser();
   const adminUsers = useAdminUsers();
   const adminUser = adminUsers.find((user) => user.id === currentUser.id);
@@ -98,8 +101,9 @@ export default function FiveSActionReportRoute({
 
   return (
     <div className="flex flex-1 flex-col px-6 py-6 lg:px-8 print:p-0">
-      <FiveSActionReportPage
+      <CanonicalActionReportPage
         action={action}
+        beforeEvidence={resolveActionSourceBeforeEvidence(action, redTags)}
         onBack={() =>
           router.push(backDestination)
         }

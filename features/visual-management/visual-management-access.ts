@@ -13,6 +13,10 @@ export function canViewVisualManagementBoard(board: VisualManagementBoard, user:
   return board.plant === user.plant && Boolean(board.zone) && board.zone === user.primaryZone;
 }
 
+export function canManageVisualManagementSchedule(board: VisualManagementBoard, user: VisualManagementAccessUser, roles: readonly string[] | undefined) {
+  return user.isSuperAdmin || board.owner.id === user.id || Boolean(roles?.includes("Admin")) || Boolean(roles?.includes("Zone Leader") && board.plant === user.plant && board.zone === user.primaryZone);
+}
+
 export function visibleVisualManagementBoards(boards: VisualManagementBoard[], user: VisualManagementAccessUser, roles: readonly string[] | undefined) {
   return boards.filter((board) => canViewVisualManagementBoard(board, user, roles));
 }

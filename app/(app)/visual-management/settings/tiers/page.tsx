@@ -1,5 +1,3 @@
-import { VisualManagementTierSettingsPage } from "@/features/settings/visual-management-settings-pages";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <VisualManagementTierSettingsPage />;
-}
+export default function Page() { redirect("/visual-management/settings"); }

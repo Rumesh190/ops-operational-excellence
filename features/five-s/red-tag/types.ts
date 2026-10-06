@@ -3,6 +3,16 @@ export const RED_TAG_REASONS = [
   "No Quantity Mentioned", "Unclean Area", "Waste", "Others",
 ] as const;
 
+export const RED_TAG_REASON_GROUPS = {
+  Identification: ["Unidentified item", "No/incorrect labelling", "Unclear ownership", "Unknown quantity"],
+  Organization: ["Wrong location", "Mixed materials", "Duplicate items", "No defined storage location"],
+  Usage: ["Unused", "Obsolete", "Excess", "Damaged", "Expired"],
+  "Inventory / Waste": ["Excess inventory", "Scrap/waste", "Redundant item"],
+  Other: ["Free Text"],
+} as const;
+export type RedTagReasonCategory = keyof typeof RED_TAG_REASON_GROUPS;
+export type RedTagCategorizedReason = (typeof RED_TAG_REASON_GROUPS)[RedTagReasonCategory][number];
+
 export const RED_TAG_SECTIONS = [
   "Production", "Assembly", "Quality", "Maintenance", "Stores", "Warehouse", "Utilities", "Office", "Other",
 ] as const;
@@ -15,26 +25,29 @@ export const RED_TAG_DECISION_LABELS: Record<RedTagDecision, string> = {
   sell_reuse: "Sell / Reuse", scrap: "Scrap", further_evaluation: "Further Evaluation",
 };
 
-/** Legacy verification choices retained until the Phase 3C UI moves to canonical decisions. */
+/** Legacy verification choices retained only so historical persisted records remain readable. */
 export const RED_TAG_DISPOSITIONS = ["Keep", "Relocate", "Repair", "Return", "Dispose", "Other"] as const;
 
 /** `In Progress` remains accepted only for the legacy Action-synchronization compatibility path. */
 export type RedTagStatus = "Open" | "Under Review" | "Decision Made" | "Disposition In Progress" | "Awaiting Verification" | "Closed" | "In Progress";
-export type RedTagReason = (typeof RED_TAG_REASONS)[number];
+export type RedTagReason = (typeof RED_TAG_REASONS)[number] | RedTagCategorizedReason;
 export type RedTagDisposition = (typeof RED_TAG_DISPOSITIONS)[number];
 export type RedTagDecision = (typeof RED_TAG_DECISIONS)[number];
 export type RedTagCategory = (typeof RED_TAG_CATEGORIES)[number];
 
-export const RED_TAG_LIFECYCLE_STAGES = ["Tagged", "Review", "Decision", "Disposition", "Verification", "Closed"] as const;
+export function getRedTagReasonDisplay(reason: RedTagReason, customReason?: string) {
+  return (reason === "Free Text" || reason === "Others") && customReason?.trim() ? customReason.trim() : reason;
+}
+
+export const RED_TAG_LIFECYCLE_STAGES = ["Tagged", "Review", "Decision", "Disposition", "Closed"] as const;
 export type RedTagLifecycleStage = (typeof RED_TAG_LIFECYCLE_STAGES)[number];
 
 export function getRedTagLifecycleStageIndex(status: RedTagStatus) {
   if (status === "Open") return 0;
   if (status === "Under Review") return 1;
   if (status === "Decision Made") return 2;
-  if (status === "Disposition In Progress" || status === "In Progress") return 3;
-  if (status === "Awaiting Verification") return 4;
-  return 5;
+  if (status === "Disposition In Progress" || status === "In Progress" || status === "Awaiting Verification") return 3;
+  return 4;
 }
 
 export interface RedTagEvidence {
@@ -115,11 +128,13 @@ export interface RedTag {
   zone: string;
   section: string;
   itemName: string;
-  quantity: number;
+  /** Legacy field retained so historical Red Tags remain readable. */
+  quantity?: number;
   department?: string;
   category?: RedTagCategory;
   estimatedValue?: number;
   reason: RedTagReason;
+  reasonCategory?: RedTagReasonCategory;
   customReason?: string;
   remarks: string;
   /** Legacy client workflow fields; V2 records capture responsibility/target in dispositionDetails. */
@@ -147,6 +162,7 @@ export interface RedTag {
   afterEvidence?: RedTagEvidence[];
   review?: RedTagReview;
   decisionRecord?: RedTagDecisionRecord;
+  handlingMode?: "direct" | "linked_action";
   dispositionDetails?: RedTagDispositionDetails;
   keepConfirmation?: RedTagKeepConfirmation;
   closure?: RedTagClosure;

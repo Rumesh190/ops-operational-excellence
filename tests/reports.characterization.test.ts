@@ -17,9 +17,11 @@ import { VISUAL_IMPROVEMENT_SEED_RECORDS } from "@/features/visual-improvement/v
 import { VISUAL_MANAGEMENT_INITIAL_STATE } from "@/features/visual-management/visual-management-store";
 import type { OrganizationAccess } from "@/lib/module-entitlements";
 import type { AccessCapabilityId } from "@/lib/modules";
+import type { RedTag } from "@/features/five-s/red-tag/types";
 
-const CAPABILITIES: AccessCapabilityId[] = ["audit", "continuousImprovement", "redFlag", "visualManagement", "gemba", "actions", "dashboards", "reports", "visualImprovement"];
+const CAPABILITIES: AccessCapabilityId[] = ["audit", "continuousImprovement", "redTag", "redFlag", "visualManagement", "gemba", "actions", "dashboards", "reports", "visualImprovement"];
 const NOW = new Date("2026-09-14T18:00:00+05:30");
+const RED_TAG: RedTag = { id: "RT-TEST-001", tagNumber: "RT-TEST-001", plant: "Egmore Plant", zone: "Zone B", section: "Production", itemName: "Test item", quantity: 1, reason: "Unused", remarks: "Test", status: "Closed", createdById: "USR-1", createdByName: "Rumesh", createdAt: NOW.toISOString(), closedAt: NOW.toISOString(), history: [] };
 
 function access(disabled: AccessCapabilityId[] = []): OrganizationAccess {
   return Object.fromEntries(CAPABILITIES.map((id) => [id, !disabled.includes(id)])) as OrganizationAccess;
@@ -31,6 +33,7 @@ function input(entitlements = access()) {
     actions: MY_ACTIONS,
     improvements: [...CONTINUOUS_IMPROVEMENT_SEED_RECORDS],
     redFlags: RED_FLAG_SEED_FLAGS,
+    redTags: [RED_TAG],
     visualImprovements: [...VISUAL_IMPROVEMENT_SEED_RECORDS],
     visualManagement: VISUAL_MANAGEMENT_INITIAL_STATE,
     gemba: GEMBA_SEED_STATE,
@@ -42,18 +45,18 @@ function input(entitlements = access()) {
 describe("Unified OPS reports", () => {
   it("orders report modules by the operational excellence model", () => {
     expect(REPORT_MODULES.map((module) => module.id)).toEqual([
-      "gemba", "redFlag", "continuousImprovement", "audit", "actions", "visualManagement",
+      "gemba", "continuousImprovement", "redTag", "audit", "actions", "visualManagement",
     ]);
   });
 
   it("registers every requested report category in one registry", () => {
-    expect(REPORT_TYPE_REGISTRY).toHaveLength(14);
+    expect(REPORT_TYPE_REGISTRY).toHaveLength(13);
     expect(REPORT_TYPE_REGISTRY.map((report) => report.label)).toEqual(expect.arrayContaining([
       "Audit Report", "Non-Compliance Summary", "Before & After Summary", "Action Report", "Completed Action Report",
-      "Overdue Action Summary", "Improvement Report", "Benefit / Savings Summary", "Red Flag Report", "Closure Report",
-      "Visual Management Meeting Report", "Gemba Walk Report", "Observation Summary", "Gemba Action Summary",
+      "Overdue Action Summary", "Improvement Report", "Benefit / Savings Summary",
+      "Red Tag Report", "Visual Management Meeting Report", "Gemba Walk Report", "Observation Summary", "Gemba Action Summary",
     ]));
-    expect(REPORT_TYPE_REGISTRY.map((report) => report.module)).not.toContain("visualImprovement");
+    expect(REPORT_TYPE_REGISTRY.map((report) => report.module)).not.toEqual(expect.arrayContaining(["visualImprovement", "redFlag"]));
     expect(REPORT_TYPE_REGISTRY.every((report) => report.supportsExcel === false)).toBe(true);
   });
 
@@ -65,7 +68,8 @@ describe("Unified OPS reports", () => {
     expect(library.some((report) => report.previewHref.includes("/actions/") && report.previewHref.includes("/report"))).toBe(true);
     expect(library.some((report) => report.reportTypeId === "actionReport" && report.previewHref.startsWith("/reports/action/"))).toBe(true);
     expect(library.some((report) => report.previewHref.includes("/continuous-improvement/") && report.previewHref.includes("/report"))).toBe(true);
-    expect(library.some((report) => report.previewHref.includes("/red-flag/") && report.previewHref.includes("/report"))).toBe(true);
+    expect(library.some((report) => report.module === "redFlag")).toBe(false);
+    expect(library.some((report) => report.module === "redTag" && report.previewHref.includes("/5s/red/"))).toBe(true);
     expect(library.some((report) => report.module === "visualManagement" && report.previewHref.includes("/visual-management/meetings/"))).toBe(true);
     expect(library.some((report) => report.module === "visualImprovement")).toBe(false);
     expect(library.some((report) => report.previewHref.includes("/gemba/") && report.previewHref.includes("/report"))).toBe(true);

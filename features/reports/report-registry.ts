@@ -4,6 +4,7 @@ export type ReportModuleId =
   | "audit"
   | "actions"
   | "continuousImprovement"
+  | "redTag"
   | "redFlag"
   | "visualManagement"
   | "visualImprovement"
@@ -18,6 +19,7 @@ export type ReportTypeId =
   | "overdueActionSummary"
   | "improvementReport"
   | "benefitSavingsSummary"
+  | "redTagReport"
   | "redFlagReport"
   | "redFlagClosureReport"
   | "visualManagementMeetingReport"
@@ -43,14 +45,15 @@ export const REPORT_MODULES: ReadonlyArray<{
   entitlement: AccessCapabilityId;
 }> = [
   { id: "gemba", label: "Gemba", entitlement: "gemba" },
-  { id: "redFlag", label: "Red Flag", entitlement: "redFlag" },
   { id: "continuousImprovement", label: "Continual Improvement", entitlement: "continuousImprovement" },
+  { id: "redTag", label: "Red Tag", entitlement: "redTag" },
   { id: "audit", label: "Audit", entitlement: "audit" },
   { id: "actions", label: "Actions", entitlement: "actions" },
   { id: "visualManagement", label: "Visual Management", entitlement: "visualManagement" },
 ] as const;
 
 const LEGACY_REPORT_MODULES: ReadonlyArray<{ id: ReportModuleId; label: string; entitlement: AccessCapabilityId }> = [
+  { id: "redFlag", label: "Red Flag", entitlement: "redFlag" },
   { id: "visualImprovement", label: "Legacy Improvement", entitlement: "visualImprovement" },
 ];
 
@@ -63,6 +66,7 @@ export const REPORT_TYPES: Record<ReportTypeId, ReportTypeDefinition> = {
   overdueActionSummary: definition("overdueActionSummary", "Overdue Action Summary", "actions", "summary", true, true),
   improvementReport: definition("improvementReport", "Improvement Report", "continuousImprovement", "record", true, false),
   benefitSavingsSummary: definition("benefitSavingsSummary", "Benefit / Savings Summary", "continuousImprovement", "summary", true, true),
+  redTagReport: definition("redTagReport", "Red Tag Report", "redTag", "record", true, false),
   redFlagReport: definition("redFlagReport", "Red Flag Report", "redFlag", "record", true, false),
   redFlagClosureReport: definition("redFlagClosureReport", "Closure Report", "redFlag", "record", true, false),
   visualManagementMeetingReport: definition("visualManagementMeetingReport", "Visual Management Meeting Report", "visualManagement", "record", true, false),
@@ -74,7 +78,7 @@ export const REPORT_TYPES: Record<ReportTypeId, ReportTypeDefinition> = {
 };
 
 /** Product-facing report registry. Legacy definitions remain addressable only through direct compatibility routes. */
-export const REPORT_TYPE_REGISTRY = Object.values(REPORT_TYPES).filter((report) => report.module !== "visualImprovement");
+export const REPORT_TYPE_REGISTRY = Object.values(REPORT_TYPES).filter((report) => !["visualImprovement", "redFlag"].includes(report.module));
 
 export function getReportType(id: string) {
   return REPORT_TYPES[id as ReportTypeId];

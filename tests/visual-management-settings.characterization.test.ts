@@ -18,7 +18,7 @@ describe("Visual Management Settings", () => {
   it("preserves the six default Boards, three Tiers, and five KPI Sections without duplication", async () => {
     installBrowser();
     const config = await import("@/features/visual-management/visual-management-configuration-store");
-    expect(config.getVisualManagementConfiguration().boards.map((item) => item.name)).toEqual(["Zone A Daily Management", "Zone B Daily Management", "Zone C Daily Management", "Zone D Daily Management", "Plant Operations", "Leadership Review"]);
+    expect(config.getVisualManagementConfiguration().boards.map((item) => item.name)).toEqual(["Zone A Daily Management", "Zone B Production Review", "Zone C Daily Management", "Zone D Daily Management", "Plant Operations", "Leadership Review"]);
     expect(config.getVisualManagementConfiguration().tiers).toHaveLength(3);
     expect(config.getVisualManagementConfiguration().kpiSections.map((item) => item.name)).toEqual(["Safety", "Quality", "Delivery", "Cost", "People"]);
   });
@@ -72,9 +72,9 @@ describe("Visual Management Settings", () => {
     expect(page).toContain("modules.visualManagement || access.isSuperAdmin");
     expect(page).toContain("SettingsAccessDenied");
     // VM settings migrated to canonical module route; global Settings no longer has a VM group.
-    // Verify the canonical VM settings page carries its own module-entitlement gate.
+    // The canonical page delegates to the guarded Board Settings workspace.
     const vmSettings = read("app/(app)/visual-management/settings/page.tsx");
-    expect(vmSettings).toContain("modules.visualManagement || access.isSuperAdmin");
+    expect(vmSettings).toContain("VisualManagementBoardsSettingsPage");
     // And verify legacy /settings/visual-management/* redirects to the canonical location.
     const legacyRedirect = read("app/(app)/settings/visual-management/boards/page.tsx");
     expect(legacyRedirect).toContain("permanentRedirect");

@@ -38,9 +38,12 @@ describe("Red Tag V2 create", () => {
     expect(store.createRedTagV2({ ...validInput, imageUrl: "" }, creator)).toBeUndefined();
     expect(store.createRedTagV2({ ...validInput, itemName: "" }, creator)).toBeUndefined();
     expect(store.createRedTagV2({ ...validInput, remarks: "" }, creator)).toBeUndefined();
-    expect(store.createRedTagV2({ ...validInput, section: "" }, creator)).toBeUndefined();
+    expect(store.createRedTagV2({ ...validInput, section: "" }, creator)).toBeDefined();
     expect(store.createRedTagV2({ ...validInput, department: "" }, creator)).toBeUndefined();
-    expect(store.createRedTagV2({ ...validInput, quantity: 0 }, creator)).toBeUndefined();
+    const withoutQuantity = { ...validInput, quantity: undefined };
+    expect(store.createRedTagV2(withoutQuantity, creator)).toBeDefined();
+    expect(store.createRedTagV2({ ...withoutQuantity, reasonCategory: "Other", reason: "Free Text", customReason: undefined }, creator)).toBeUndefined();
+    expect(store.createRedTagV2({ ...withoutQuantity, reasonCategory: "Other", reason: "Free Text", customReason: "Awaiting engineering identification" }, creator)).toMatchObject({ customReason: "Awaiting engineering identification" });
   });
 
   it("preserves generated identity, opens the lifecycle, creates history, and does not create an Action", async () => {
@@ -52,6 +55,14 @@ describe("Red Tag V2 create", () => {
     expect(tag.history).toHaveLength(1);
     expect(tag.history[0]).toMatchObject({ type: "created", label: "Red Tag created", actor: creator.name });
     expect(store.getRedTag(tag.id)?.imageUrl).toBe(validInput.imageUrl);
+  });
+
+  it("creates and automatically submits to the reviewer", async () => {
+    const store = await redTagStore();
+    const tag = store.createAndSubmitRedTagV2({ ...validInput, section: "Production", reasonCategory: "Usage", reason: "Obsolete" }, creator, reviewer)!;
+    expect(tag).toMatchObject({ status: "Under Review", review: { reviewerId: reviewer.id, reviewerName: reviewer.name } });
+    expect(tag.actionId).toBeUndefined();
+    expect(tag.history.map((event) => event.type)).toEqual(["created", "review_submitted"]);
   });
 });
 
@@ -75,13 +86,13 @@ describe("Red Tag V2 review and decision", () => {
 
 describe("Red Tag Phase 3B UI contract", () => {
   it("maps each lifecycle status to the compact shared stages", () => {
-    expect(RED_TAG_LIFECYCLE_STAGES).toEqual(["Tagged", "Review", "Decision", "Disposition", "Verification", "Closed"]);
-    expect(["Open", "Under Review", "Decision Made", "Disposition In Progress", "Awaiting Verification", "Closed"].map((status) => getRedTagLifecycleStageIndex(status as never))).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(RED_TAG_LIFECYCLE_STAGES).toEqual(["Tagged", "Review", "Decision", "Disposition", "Closed"]);
+    expect(["Open", "Under Review", "Decision Made", "Disposition In Progress", "Awaiting Verification", "Closed"].map((status) => getRedTagLifecycleStageIndex(status as never))).toEqual([0, 1, 2, 3, 3, 4]);
   });
 
   it("keeps original context, status-specific CTAs, legacy fallbacks, and established QR identity in the detail implementation", () => {
     const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-module.tsx"), "utf8");
-    for (const text of ["Before / After Evidence", "Item Description", "Quantity", "Location", "Department", "Reason", "Category", "Estimated Value", "Identified By", "Identified Date"]) expect(source).toContain(text);
+    for (const text of ["Disposition Outcome", "Item Description", "Quantity", "Department", "Reason", "Category", "Identified By", "Identified Date"]) expect(source).toContain(text);
     expect(source).toContain("Submit for Review");
     expect(source).toContain("Record Decision");
     expect(source).toContain("tag.review?.reviewerId === user.id");
@@ -89,7 +100,7 @@ describe("Red Tag Phase 3B UI contract", () => {
     expect(source).toContain("tag.department ?? \"Not recorded\"");
     expect(source).toContain("No description added.");
     expect(source).toContain("QrCode value={qrTarget}");
-    expect(source).toContain("createRedTagV2");
+    expect(source).toContain("createAndSubmitRedTagV2");
     expect(source).not.toContain("status: \"Under Review\"");
   });
 });

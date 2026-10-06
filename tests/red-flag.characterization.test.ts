@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MY_ACTIONS } from "@/features/five-s/data/my-actions-data";
 import { RED_FLAG_SEED_FLAGS, getRedFlagSummary, isRedFlagOverdue } from "@/features/red-flag/red-flag-store";
 import { getActionSourceHref } from "@/lib/actions/action-config";
-import { OPERATIONAL_MODULES } from "@/lib/modules";
+import { getOperationalModule, OPERATIONAL_MODULES } from "@/lib/modules";
 
 function storage() {
   const values = new Map<string, string>();
@@ -13,9 +13,11 @@ function storage() {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("OPS Red Flag domain", () => {
-  it("keeps Red Flag canonical without claiming the 5S Red Tag route", () => {
-    const registryEntry = OPERATIONAL_MODULES.find((item) => item.id === "redFlag");
+  it("keeps Red Flag compatibility without exposing it as an active module", () => {
+    const registryEntry = getOperationalModule("redFlag");
     expect(registryEntry?.route).toBe("/red-flag");
+    expect(registryEntry.enabled).toBe(false);
+    expect(OPERATIONAL_MODULES.map((item) => item.id)).not.toContain("redFlag");
     expect(registryEntry?.legacyRoutes ?? []).not.toContain("/5s/red");
   });
 

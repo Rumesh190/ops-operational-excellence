@@ -2,6 +2,7 @@ import type { FiveSAudit } from "@/features/five-s/types/five-s";
 import type { MyAction } from "@/features/five-s/types/my-actions";
 import type { ContinuousImprovement } from "@/features/five-s/continuous-improvement/types";
 import type { RedFlag } from "@/features/red-flag/types";
+import type { RedTag } from "@/features/five-s/red-tag/types";
 import type { VisualImprovement } from "@/features/visual-improvement/types";
 import type { GembaState } from "@/features/gemba/types";
 import type { VisualManagementState } from "@/features/visual-management/types";
@@ -13,6 +14,7 @@ import {
   type ReportModuleId,
   type ReportTypeId,
 } from "./report-registry";
+import { getActionReportTitle } from "./report-presentation";
 
 export type ReportStatus = "Draft" | "Final" | "Archived";
 
@@ -40,6 +42,7 @@ export interface ReportLibraryInput {
   actions: MyAction[];
   improvements: ContinuousImprovement[];
   redFlags: RedFlag[];
+  redTags: RedTag[];
   visualImprovements?: VisualImprovement[];
   visualManagement?: VisualManagementState;
   gemba: GembaState;
@@ -79,7 +82,7 @@ export function buildActionReportData(actions: MyAction[]): ReportLibraryItem[] 
   return actions.map((action) => item({
     id: `action:${action.id}`,
     reportTypeId: action.status === "Completed" ? "completedActionReport" : "actionReport",
-    title: `${action.title} · ${action.status === "Completed" ? "Completion Report" : "Action Report"}`,
+    title: `${action.title} · ${getActionReportTitle(action)}`,
     reference: action.id,
     plant: action.plant,
     zone: action.area,
@@ -122,6 +125,22 @@ export function buildRedFlagReportData(redFlags: RedFlag[]): ReportLibraryItem[]
     status: flag.status === "Closed" ? "Final" : "Draft",
     previewHref: `/red-flag/${encodeURIComponent(flag.id)}/report`,
     sourceHref: `/red-flag/${encodeURIComponent(flag.id)}`,
+  }));
+}
+
+export function buildRedTagReportData(redTags: RedTag[]): ReportLibraryItem[] {
+  return redTags.map((tag) => item({
+    id: `red-tag:${tag.id}`,
+    reportTypeId: "redTagReport",
+    title: `${tag.itemName} · Red Tag Report`,
+    reference: tag.tagNumber,
+    plant: tag.plant,
+    zone: tag.zone,
+    generatedBy: tag.closure?.verifiedByName ?? tag.createdByName,
+    date: tag.closedAt ?? tag.closure?.verifiedAt ?? tag.createdAt,
+    status: tag.status === "Closed" ? "Final" : "Draft",
+    previewHref: `/5s/red/${encodeURIComponent(tag.id)}/report`,
+    sourceHref: `/5s/red/${encodeURIComponent(tag.id)}`,
   }));
 }
 
@@ -193,6 +212,7 @@ export function buildReportLibrary(input: ReportLibraryInput): ReportLibraryItem
       ...buildCIReportData(input.improvements),
       summaryItem("benefitSavingsSummary", input.improvements[0]?.plant, now),
     ],
+    redTag: buildRedTagReportData(input.redTags),
     redFlag: buildRedFlagReportData(input.redFlags),
     visualManagement: buildVisualManagementReportData(input.visualManagement ?? { boards: [], meetings: [], topics: [], decisions: [], escalations: [] }),
     visualImprovement: [],
@@ -263,6 +283,7 @@ function sourceRoute(module: ReportModuleId) {
     audit: "/audits",
     actions: "/actions",
     continuousImprovement: "/continuous-improvement",
+    redTag: "/5s/red",
     redFlag: "/red-flag",
     visualManagement: "/visual-management/meetings",
     visualImprovement: "/visual-improvement",

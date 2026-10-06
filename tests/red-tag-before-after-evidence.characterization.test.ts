@@ -67,22 +67,21 @@ describe("Feedback #34 Red Tag before and after evidence", () => {
     expect(store.getRedTag(tag.id)?.status).toBe("Disposition In Progress");
   });
 
-  it.each(["relocate", "return", "repair", "sell_reuse", "scrap"] as const)("supports %s through After capture, verification, and closure", async (type) => {
+  it.each(["relocate", "return", "repair", "sell_reuse", "scrap"] as const)("closes %s directly after valid disposition evidence", async (type) => {
     const { store } = await setup();
     const tag = decision(store, type);
     store.startRedTagDisposition(tag.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-10-01", executionNotes: "Execute approved disposition" }, reviewer);
-    expect(store.completeRedTagDisposition(tag.id, { evidence: after, completionNotes: "Physical work complete", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Awaiting Verification", afterEvidence: after });
-    expect(store.verifyRedTagDisposition(tag.id, { passed: true, details: "Before and After reviewed" }, reviewer)).toBeTruthy();
-    expect(store.closeRedTag(tag.id, reviewer)).toMatchObject({ status: "Closed" });
+    const closed = store.completeRedTagDisposition(tag.id, { evidence: after, completionNotes: "Physical work complete", responsibleConfirmed: true }, reviewer)!;
+    expect(closed).toMatchObject({ status: "Closed", afterEvidence: after });
+    expect(closed.history.map((event) => event.type)).not.toEqual(expect.arrayContaining(["awaiting_verification", "verified", "verification_failed"]));
   });
 
-  it("requires After for Keep and preserves Further Evaluation's final-decision guard", async () => {
+  it("does not require After for Keep and preserves Further Evaluation's final-decision guard", async () => {
     const { store } = await setup();
     const keep = decision(store, "keep");
-    store.confirmRedTagKeep(keep.id, "Retain calibrated master", reviewer);
+    expect(store.confirmRedTagKeep(keep.id, "Retain calibrated master", reviewer)).toMatchObject({ status: "Closed" });
     expect(store.verifyRedTagDisposition(keep.id, { passed: true, details: "Retained state checked" }, reviewer)).toBeUndefined();
-    expect(store.verifyRedTagDisposition(keep.id, { passed: true, details: "Retained state checked", evidence: after }, reviewer)).toBeTruthy();
-    expect(store.closeRedTag(keep.id, reviewer)).toMatchObject({ status: "Closed" });
+    expect(store.getRedTag(keep.id)?.afterEvidence).toBeUndefined();
 
     const pending = decision(store, "further_evaluation");
     expect(store.startRedTagDisposition(pending.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-10-01" }, reviewer)).toBeUndefined();
@@ -112,13 +111,20 @@ describe("Feedback #34 Red Tag before and after evidence", () => {
     expect(reloaded.closeRedTag(tag.id, reviewer)).toMatchObject({ status: "Closed" });
   });
 
-  it("maps legacy disposition or closure evidence to After by reference and never reopens historical Closed records", async () => {
+  it("safely closes complete legacy records, retains incomplete ones, and never reopens historical Closed records", async () => {
     const { store } = await setup();
     const legacy = store.createRedTagV2(input(beforeUrl), creator)!;
     const dispositionEvidence = after;
-    const normalized = store.normalizeRedTag({ ...legacy, status: "Awaiting Verification", dispositionDetails: { decision: "scrap", responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-10-01", startedAt: "2026-09-24T07:00:00.000Z", startedByUserId: reviewer.id, startedByName: reviewer.name, evidence: dispositionEvidence } });
+    const legacyClosure = { verificationResult: "Passed" as const, verificationDetails: "Historical verification", verifiedAt: "2026-09-24T09:00:00.000Z", verifiedByUserId: reviewer.id, verifiedByName: reviewer.name };
+    const completeDisposition = { decision: "scrap" as const, responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-10-01", startedAt: "2026-09-24T07:00:00.000Z", startedByUserId: reviewer.id, startedByName: reviewer.name, executionNotes: "Scrap in approved area", completedAt: "2026-09-24T08:00:00.000Z", completedByUserId: reviewer.id, completedByName: reviewer.name, completionNotes: "Scrapped", responsibleConfirmed: true, evidence: dispositionEvidence };
+    const decisionRecord = { type: "scrap" as const, decidedAt: "2026-09-24T06:00:00.000Z", decidedByUserId: reviewer.id, decidedByName: reviewer.name };
+    const normalized = store.normalizeRedTag({ ...legacy, status: "Awaiting Verification", closure: legacyClosure, decisionRecord, dispositionDetails: completeDisposition });
     expect(normalized.imageUrl).toBe(beforeUrl);
     expect(normalized.afterEvidence).toBe(dispositionEvidence);
+    expect(normalized.status).toBe("Closed");
+    expect(normalized.closedAt).toBe(completeDisposition.completedAt);
+    expect(normalized.closure).toEqual(legacyClosure);
+    expect(store.normalizeRedTag({ ...legacy, status: "Awaiting Verification", decisionRecord, dispositionDetails: { ...completeDisposition, completionNotes: undefined } }).status).toBe("Disposition In Progress");
     expect(store.normalizeRedTag({ ...normalized, status: "Closed", afterEvidence: [] }).status).toBe("Closed");
   });
 
@@ -127,11 +133,27 @@ describe("Feedback #34 Red Tag before and after evidence", () => {
     expect(source).toContain('label="Before Photo *"');
     expect(source).toContain('label="After Photo *"');
     expect(source).toContain("OpsCameraCapture");
-    expect(source).toContain("Before / After Evidence");
-    expect(source).toContain("Pending disposition");
-    expect(source).toContain("Before photo is required to create this Red Tag.");
+    expect(source).toContain("Disposition Outcome");
+    expect(source).toContain('<DispositionEvidence title="Before"');
+    expect(source).toContain('<DispositionEvidence title="After"');
+    expect(source).toContain("Add a photo to create this Red Tag.");
     expect(source).toContain("evidence: []");
     const { getRedTagQrTarget } = await import("@/features/five-s/red-tag/qr");
     expect(getRedTagQrTarget("RT-EGM-ZA-034", "https://ops.example")).toBe("https://ops.example/5s/red/RT-EGM-ZA-034");
+  });
+
+  it("uses canonical Before and After evidence once in the completed outcome without active verification UI", () => {
+    const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-module.tsx"), "utf8");
+    expect(source.match(/<DispositionEvidence title="Before"/g)).toHaveLength(1);
+    expect(source.match(/<DispositionEvidence title="After"/g)).toHaveLength(1);
+    for (const removed of ["Verification and Closure", "Record Verification", "Verification Comments", "Verification Result"]) expect(source).not.toContain(removed);
+  });
+
+  it("reports one disposition outcome with one Before and one After source and no verification section", () => {
+    const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-report-page.tsx"), "utf8");
+    expect(source.match(/title="Disposition Outcome"/g)).toHaveLength(1);
+    expect(source.match(/label="Before Evidence"/g)).toHaveLength(2); // Keep and physical branches each define one mutually exclusive source.
+    expect(source.match(/label="After Evidence"/g)).toHaveLength(1);
+    for (const removed of ["Verification Result", "Verification Comments", "Verified By", "Verification Date"]) expect(source).not.toContain(removed);
   });
 });

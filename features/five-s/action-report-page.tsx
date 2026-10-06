@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { useI18n } from "@/components/preferences/use-i18n";
 import type { MyAction, MyActionActivity, MyActionEvidence } from "./types/my-actions";
 import { getActionSourceDefinition } from "@/lib/actions/action-config";
+import { getActionReportTitle } from "@/features/reports/report-presentation";
+import { actionEvidenceEmptyText, type ResolvedActionSourceEvidence } from "@/lib/actions/action-evidence";
 
-interface Props { action: MyAction; onBack: () => void; onViewSource?: () => void; backLabel?: string }
+interface Props { action: MyAction; beforeEvidence: ResolvedActionSourceEvidence; onBack: () => void; onViewSource?: () => void; backLabel?: string }
 
 const ACTIVITY_LABELS: Record<MyActionActivity["type"], string> = {
   created: "Action created", awaiting_assignment: "Awaiting assignment",
@@ -31,7 +33,7 @@ const DEMO_PROFILE_PHOTOS: Readonly<Record<string, string>> = {
   Lakshman: "/demo-5s/balaji.jpeg",
 };
 
-export default function FiveSActionReportPage({ action, onBack, onViewSource, backLabel = "Back to Actions" }: Props) {
+export default function FiveSActionReportPage({ action, beforeEvidence, onBack, onViewSource, backLabel = "Back to Actions" }: Props) {
   const { t } = useI18n();
   const history = action.activityHistory ?? [];
   const assigned = history.find((event) => event.type === "assigned");
@@ -44,7 +46,6 @@ export default function FiveSActionReportPage({ action, onBack, onViewSource, ba
   const approver = action.closedBy ?? action.reviewedBy ?? action.createdByName ?? action.auditor ?? "—";
   const completedAt = action.closedAt ?? closed?.createdAt ?? action.completedAt;
   const result = action.resolutionObservation ?? action.actionTakenDescription ?? "No improvement result recorded.";
-  const beforeText = action.originalFinding ?? action.description;
   const afterText = result;
   const generatedAt = formatDateTime(new Date().toISOString());
   const responsiblePhoto = DEMO_PROFILE_PHOTOS[completedPerson];
@@ -71,7 +72,7 @@ export default function FiveSActionReportPage({ action, onBack, onViewSource, ba
 
   return (
     <div className="action-report-page -m-5 min-h-screen bg-slate-100 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:-m-6 sm:p-6 lg:-m-7 xl:-m-8">
-      <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
+      <style>{`@media print { @page { size: A4 portrait; margin: 10mm; } .action-report-controls { display:none!important } .action-report-document { border:0!important; box-shadow:none!important } .action-report-block { break-inside:avoid; page-break-inside:avoid } }`}</style>
       <div className="action-report-controls mx-auto mb-4 flex max-w-[1180px] flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" /> {backLabel}</Button>
         <div className="flex flex-wrap gap-2">{onViewSource && <Button variant="outline" onClick={onViewSource}><FileText className="size-4" />View Action</Button>}<Button onClick={handlePrint}><Printer className="size-4" /> {t("reports.savePdf")}</Button></div>
@@ -85,11 +86,11 @@ export default function FiveSActionReportPage({ action, onBack, onViewSource, ba
 
           <section className="action-report-block rounded-lg border border-blue-100 bg-blue-50/[0.12] p-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="improvement-comparison grid gap-3 lg:grid-cols-[minmax(0,2fr)_44px_minmax(170px,1fr)_44px_minmax(0,2fr)] lg:items-center">
-              <EvidencePanel tone="before" label={t("actionReport.before")} evidence={action.issueEvidence ?? []} description={beforeText} empty="No original evidence captured" />
+              <EvidencePanel tone="before" label="Before Evidence" evidence={beforeEvidence.evidence} description={beforeEvidence.provenance} empty={actionEvidenceEmptyText(beforeEvidence.state)} />
               <DirectionArrow />
               <CompletedByPanel name={completedPerson} department={action.department} zone={action.area} completedAt={completedAt} photo={responsiblePhoto} />
               <DirectionArrow />
-              <EvidencePanel tone="after" label={t("actionReport.after")} evidence={action.evidence} description={afterText} empty="No completion evidence captured" />
+              <EvidencePanel tone="after" label="After Evidence" evidence={action.evidence} description={afterText} empty="No evidence captured" />
             </div>
           </section>
 
@@ -128,7 +129,7 @@ export default function FiveSActionReportPage({ action, onBack, onViewSource, ba
 
 function ReportHeader({ action, generatedAt }: { action: MyAction; generatedAt: string }) {
   const { t } = useI18n();
-  return <header className="report-header action-report-block relative border-b border-blue-100 bg-gradient-to-b from-blue-50/60 to-white px-4 py-5 text-center dark:border-slate-700 dark:from-blue-950/25 dark:to-slate-900 sm:px-7"><div className="mb-3 flex justify-center sm:absolute sm:right-5 sm:top-4 sm:mb-0"><Badge variant="success" className="border-green-300 bg-green-50 px-3 py-1 text-green-700 uppercase tracking-wide shadow-none dark:border-green-800 dark:bg-green-950/40 dark:text-green-300"><CheckCircle2 className="size-3.5" /> {t("common.completed")}</Badge></div><p className="text-xl font-extrabold uppercase tracking-[0.04em] text-blue-800 dark:text-blue-300 sm:text-[30px] sm:tracking-[0.055em]">{t("actionReport.title")}</p><div className="mt-2 flex min-w-0 flex-wrap justify-center gap-x-8 gap-y-1 text-xs text-slate-600 dark:text-slate-300"><span className="break-all"><strong className="text-blue-800 dark:text-blue-300">{t("actionReport.improvementNumber")}:</strong> {action.id}</span><span><strong>{t("reports.reportGenerated")}:</strong> {generatedAt}</span></div><h1 className="mx-auto mt-3 max-w-4xl break-words text-lg font-extrabold tracking-tight text-slate-950 dark:text-white sm:px-16 sm:text-[25px]">{action.title}</h1></header>;
+  return <header className="report-header action-report-block relative border-b border-blue-100 bg-gradient-to-b from-blue-50/60 to-white px-4 py-5 text-center dark:border-slate-700 dark:from-blue-950/25 dark:to-slate-900 sm:px-7"><div className="mb-3 flex justify-center sm:absolute sm:right-5 sm:top-4 sm:mb-0"><Badge variant="success" className="border-green-300 bg-green-50 px-3 py-1 text-green-700 uppercase tracking-wide shadow-none dark:border-green-800 dark:bg-green-950/40 dark:text-green-300"><CheckCircle2 className="size-3.5" /> {t("common.completed")}</Badge></div><p className="text-xl font-extrabold uppercase tracking-[0.04em] text-blue-800 dark:text-blue-300 sm:text-[30px] sm:tracking-[0.055em]">{getActionReportTitle(action)}</p><div className="mt-2 flex min-w-0 flex-wrap justify-center gap-x-8 gap-y-1 text-xs text-slate-600 dark:text-slate-300"><span className="break-all"><strong className="text-blue-800 dark:text-blue-300">Action ID:</strong> {action.id}</span><span><strong>{t("reports.reportGenerated")}:</strong> {generatedAt}</span></div><h1 className="mx-auto mt-3 max-w-4xl break-words text-lg font-extrabold tracking-tight text-slate-950 dark:text-white sm:px-16 sm:text-[25px]">{action.title}</h1></header>;
 }
 
 function ReportMetadata({ action, completedAt }: { action: MyAction; completedAt?: string }) {
@@ -152,6 +153,7 @@ function ReportMetadata({ action, completedAt }: { action: MyAction; completedAt
     ["Completion", shortPerformance(action.dueDate, action.closedAt ?? completedAt), "text-emerald-700 dark:text-emerald-400"],
     ["Actual Cost Saving", formatCurrency(action.costSaving), "text-emerald-700 dark:text-emerald-400"],
     ["Action Category", action.actionCategory ?? action.correctiveActionCategory ?? "—", ""],
+    ["Source Context", action.sourceObservation ?? action.originalFinding ?? "—", ""],
   ];
   return <section className="report-metadata action-report-block overflow-hidden rounded-lg border border-blue-200 bg-white dark:border-slate-700 dark:bg-slate-900"><div className="metadata-primary grid grid-cols-2 divide-x divide-y divide-blue-100 dark:divide-slate-700 sm:grid-cols-3 lg:grid-cols-6">{primary.map(([Icon, label, value]) => <div key={label} className="flex min-w-0 items-center gap-2.5 p-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"><Icon className="size-4" /></span><div className="min-w-0"><p className="text-[9px] font-bold tracking-wide text-slate-500">{label}</p><p className="mt-0.5 truncate text-xs font-bold" title={value}>{value}</p></div></div>)}</div><div className="metadata-secondary grid grid-cols-2 divide-x divide-y divide-blue-100 border-t border-blue-200 bg-slate-50/40 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/25 sm:grid-cols-4">{secondary.map(([label, value, tone]) => <div key={label} className="min-w-0 p-2.5"><p className="text-[9px] font-medium text-slate-500">{label}</p><p className={`mt-1 text-[11px] font-bold leading-4 ${tone}`} title={value}>{value}</p></div>)}</div></section>;
 }

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import type { DemoUser } from "@/lib/current-user";
 import type { MyAction, MyActionStatus } from "@/features/five-s/types/my-actions";
-import { RED_TAG_CATEGORIES, RED_TAG_DECISIONS, type RedTag, type RedTagDecision, type RedTagDisposition, type RedTagEvidence, type RedTagHistoryEvent, type RedTagStatus } from "./types";
+import { RED_TAG_CATEGORIES, RED_TAG_DECISIONS, RED_TAG_REASON_GROUPS, type RedTag, type RedTagDecision, type RedTagDisposition, type RedTagEvidence, type RedTagHistoryEvent, type RedTagStatus } from "./types";
 import { safeSetStorage, STORAGE_FULL_MESSAGE } from "@/lib/browser-storage";
 
 export const RED_TAG_STORAGE_KEY = "five-s-red-tags-v1";
@@ -62,9 +62,21 @@ export function normalizeRedTagStatus(status: string, tag?: Partial<RedTag>): Re
 export function normalizeRedTag(tag: RedTag): RedTag {
   const legacyStatus = String((tag as { status?: string }).status ?? "Open");
   const afterEvidence = tag.afterEvidence?.length ? tag.afterEvidence : tag.dispositionDetails?.evidence?.length ? tag.dispositionDetails.evidence : tag.closure?.evidence ?? [];
+  const normalizedStatus = normalizeRedTagStatus(legacyStatus, tag);
+  const hasRequiredDispositionSetup = Boolean(
+    tag.dispositionDetails?.responsiblePersonId && tag.dispositionDetails.responsiblePersonName?.trim() &&
+    tag.dispositionDetails.targetDate && tag.dispositionDetails.executionNotes?.trim(),
+  );
+  const isPhysicalDisposition = Boolean(tag.decisionRecord && !["keep", "further_evaluation"].includes(tag.decisionRecord.type));
+  const legacyDispositionCanClose = normalizedStatus === "Awaiting Verification" && hasRequiredDispositionSetup && Boolean(
+    tag.imageUrl?.trim() && afterEvidence.length && tag.dispositionDetails?.completedAt &&
+    tag.dispositionDetails.completionNotes?.trim() && tag.dispositionDetails.responsibleConfirmed,
+  );
+  const legacyDispositionCanResume = normalizedStatus === "Awaiting Verification" && !legacyDispositionCanClose && hasRequiredDispositionSetup && isPhysicalDisposition;
   return {
     ...tag,
-    status: normalizeRedTagStatus(legacyStatus, tag),
+    status: legacyDispositionCanClose ? "Closed" : legacyDispositionCanResume ? "Disposition In Progress" : normalizedStatus,
+    closedAt: legacyDispositionCanClose ? tag.closedAt ?? tag.dispositionDetails?.completedAt : tag.closedAt,
     afterEvidence,
     removalConfirmed: tag.removalConfirmed ?? false,
     history: tag.history ?? [],
@@ -88,8 +100,8 @@ function updateTag(id: string, updater: (tag: RedTag) => RedTag) {
 export const RED_TAG_VALID_TRANSITIONS: Readonly<Record<RedTagStatus, readonly RedTagStatus[]>> = {
   Open: ["Under Review"],
   "Under Review": ["Decision Made"],
-  "Decision Made": ["Disposition In Progress"],
-  "Disposition In Progress": ["Awaiting Verification"],
+  "Decision Made": ["Disposition In Progress", "Closed"],
+  "Disposition In Progress": ["Closed"],
   "Awaiting Verification": ["Closed"],
   Closed: [],
   "In Progress": [],
@@ -120,11 +132,34 @@ export type CreateRedTagV2Input = Omit<RedTag, "id" | "tagNumber" | "status" | "
 
 /** Validates the physical-item fields required by the V2 create experience. */
 export function createRedTagV2(input: CreateRedTagV2Input, user: DemoUser) {
-  if (!input.itemName.trim() || !input.remarks.trim() || !input.section.trim() || !input.department.trim() || !input.imageUrl?.trim()) return undefined;
-  if (!Number.isFinite(input.quantity) || input.quantity < 1 || !RED_TAG_CATEGORIES.includes(input.category)) return undefined;
-  if (input.reason === "Others" && !input.customReason?.trim()) return undefined;
+  if (!input.itemName.trim() || !input.remarks.trim() || !input.department.trim() || !input.imageUrl?.trim()) return undefined;
+  if (!RED_TAG_CATEGORIES.includes(input.category)) return undefined;
+  if (input.reason === "Free Text" && !input.customReason?.trim()) return undefined;
+  if (input.reasonCategory && !RED_TAG_REASON_GROUPS[input.reasonCategory].includes(input.reason as never)) return undefined;
   if (input.estimatedValue !== undefined && (!Number.isFinite(input.estimatedValue) || input.estimatedValue < 0)) return undefined;
   return createRedTag(input, user);
+}
+
+export function createAndSubmitRedTagV2(input: CreateRedTagV2Input, user: DemoUser, reviewer: Pick<DemoUser, "id" | "name">) {
+  const tag = createRedTagV2(input, user);
+  if (!tag) return undefined;
+  return submitRedTagForReview(tag.id, { reviewerId: reviewer.id, reviewerName: reviewer.name }, user);
+}
+
+export function setRedTagHandlingMode(id: string, mode: "direct" | "linked_action", actor: DemoUser) {
+  const tag = getRedTag(id);
+  if (!tag || tag.status !== "Decision Made" || !tag.decisionRecord || tag.decisionRecord.type === "keep") return undefined;
+  return updateTag(id, (current) => ({ ...current, handlingMode: mode, history: [...current.history, history("disposition_started", mode === "direct" ? "Direct handling selected" : "Linked Action selected", actor)] }));
+}
+
+export function clearRedTagHandlingMode(id: string, actor: DemoUser) {
+  const tag = getRedTag(id);
+  if (!tag || tag.status !== "Decision Made" || !tag.handlingMode || tag.actionId || tag.dispositionDetails) return undefined;
+  return updateTag(id, (current) => ({
+    ...current,
+    handlingMode: undefined,
+    history: [...current.history, history("disposition_started", "Handling method selection cleared", actor)],
+  }));
 }
 export function markTagPrinted(id: string, user: DemoUser) {
   load();
@@ -196,7 +231,7 @@ export function startRedTagDisposition(id: string, input: StartRedTagDisposition
   const tag = getRedTag(id);
   if (!tag || !canTransition(tag.status, "Disposition In Progress") || !tag.decisionRecord) return undefined;
   if (["keep", "further_evaluation"].includes(tag.decisionRecord.type)) return undefined;
-  if (!input.responsiblePersonId || !input.responsiblePersonName.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(input.targetDate)) return undefined;
+  if (!input.responsiblePersonId || !input.responsiblePersonName.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(input.targetDate) || !input.executionNotes?.trim()) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
@@ -225,19 +260,27 @@ export interface CompleteRedTagDispositionInput {
 
 export function completeRedTagDisposition(id: string, evidenceOrInput: RedTagEvidence[] | CompleteRedTagDispositionInput, actor: DemoUser) {
   const tag = getRedTag(id);
-  if (!tag || !canTransition(tag.status, "Awaiting Verification") || !tag.decisionRecord || !tag.dispositionDetails) return undefined;
+  if (!tag || !canTransition(tag.status, "Closed") || !tag.decisionRecord || !tag.dispositionDetails || !tag.imageUrl?.trim()) return undefined;
   if (["keep", "further_evaluation"].includes(tag.decisionRecord.type)) return undefined;
+  if (!tag.dispositionDetails.responsiblePersonId || !tag.dispositionDetails.responsiblePersonName.trim() || !tag.dispositionDetails.targetDate || !tag.dispositionDetails.executionNotes?.trim()) return undefined;
   if (tag.actionId && tag.syncedActionStatus !== "Completed") return undefined;
   const input = Array.isArray(evidenceOrInput) ? { evidence: evidenceOrInput } : evidenceOrInput;
   if (!input.evidence.length || !input.completionNotes?.trim() || input.responsibleConfirmed !== true) return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
-    status: "Awaiting Verification",
-    dispositionDetails: { ...current.dispositionDetails!, completedAt: now, completedByUserId: actor.id, completedByName: actor.name, completionNotes: input.completionNotes?.trim() || undefined, responsibleConfirmed: input.responsibleConfirmed, evidence: [...current.dispositionDetails!.evidence, ...input.evidence] },
-    afterEvidence: [...(current.afterEvidence ?? []), ...input.evidence],
-    history: [...current.history, history("disposition_completed", "Disposition completed; awaiting verification", actor, now), history("awaiting_verification", "Awaiting physical verification", actor, now)],
+    status: "Closed",
+    closedAt: now,
+    dispositionDetails: { ...current.dispositionDetails!, completedAt: now, completedByUserId: actor.id, completedByName: actor.name, completionNotes: input.completionNotes?.trim() || undefined, responsibleConfirmed: input.responsibleConfirmed, evidence: mergeRedTagEvidence(current.dispositionDetails!.evidence, input.evidence) },
+    afterEvidence: mergeRedTagEvidence(current.afterEvidence ?? [], input.evidence),
+    history: [...current.history, history("disposition_completed", "Disposition completed", actor, now), history("closed", "Red Tag closed", actor, now)],
   }));
+}
+
+function mergeRedTagEvidence(existing: RedTagEvidence[], incoming: RedTagEvidence[]) {
+  const byId = new Map(existing.map((item) => [item.id, item]));
+  incoming.forEach((item) => byId.set(item.id, item));
+  return [...byId.values()];
 }
 
 export interface VerifyRedTagDispositionInput {
@@ -263,13 +306,14 @@ export function verifyRedTagDisposition(id: string, input: VerifyRedTagDispositi
 
 export function confirmRedTagKeep(id: string, justification: string, actor: DemoUser) {
   const tag = getRedTag(id);
-  if (!tag || tag.status !== "Decision Made" || tag.decisionRecord?.type !== "keep" || !justification.trim()) return undefined;
+  if (!tag || !canTransition(tag.status, "Closed") || tag.decisionRecord?.type !== "keep") return undefined;
   const now = new Date().toISOString();
   return updateTag(id, (current) => ({
     ...current,
-    status: "Awaiting Verification",
+    status: "Closed",
+    closedAt: now,
     keepConfirmation: { justification: justification.trim(), confirmedAt: now, confirmedByUserId: actor.id, confirmedByName: actor.name },
-    history: [...current.history, history("keep_confirmed", "Keep decision confirmed; awaiting verification", actor, now), history("awaiting_verification", "Awaiting Keep verification", actor, now)],
+    history: [...current.history, history("keep_confirmed", "Keep decision confirmed", actor, now), history("closed", "Red Tag closed after Keep confirmation", actor, now)],
   }));
 }
 
@@ -310,6 +354,31 @@ export function reconcileRedTagActions(actions: MyAction[]) {
     const action = tag.actionId ? actionMap.get(tag.actionId) : undefined;
     if (!action || action.status === tag.syncedActionStatus || tag.status === "Closed") return tag;
     changed = true;
+    if (action.status === "Completed" && tag.handlingMode === "linked_action" && tag.decisionRecord) {
+      const completionEvidence: RedTagEvidence[] = action.evidence
+        .filter((item) => item.type === "image" && Boolean(item.url))
+        .map((item) => ({ id: item.id, name: item.name, url: item.url!, mimeType: item.mimeType, uploadedBy: item.uploadedBy, uploadedAt: item.uploadedAt }));
+      const existingEvidenceIds = new Set((tag.afterEvidence ?? []).map((item) => item.id));
+      const importedEvidence = completionEvidence.filter((item) => !existingEvidenceIds.has(item.id));
+      return {
+        ...tag,
+        status: "Disposition In Progress" as const,
+        syncedActionStatus: action.status,
+        afterEvidence: [...(tag.afterEvidence ?? []), ...importedEvidence],
+        dispositionDetails: tag.dispositionDetails ?? {
+          decision: tag.decisionRecord.type,
+          responsiblePersonId: action.responsiblePersonId ?? "LEGACY-ACTION-OWNER",
+          responsiblePersonName: action.responsiblePersonName ?? action.assignedTo,
+          targetDate: action.dueDate,
+          startedAt: action.createdAt,
+          startedByUserId: action.createdByUserId ?? "SYSTEM",
+          startedByName: action.createdByName ?? action.auditor ?? "OPS",
+          executionNotes: action.description,
+          evidence: importedEvidence,
+        },
+        history: [...tag.history, history("disposition_started", `Linked Action completed; ${importedEvidence.length} completion evidence item${importedEvidence.length === 1 ? "" : "s"} imported`, system)],
+      };
+    }
     // Legacy Action-driven tags did not have review/decision/disposition records. Keep
     // that compatibility path renderable without fabricating V2 lifecycle metadata.
     if (action.status === "Completed" && !tag.decisionRecord) return { ...tag, status: "Awaiting Verification" as const, syncedActionStatus: action.status, history: [...tag.history, history("awaiting_verification", "Linked Action completed; awaiting physical verification", system)] };

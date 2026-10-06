@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { safeSetStorage } from "@/lib/browser-storage";
 
 export type VisualManagementBoardConfigurationStatus = "Active" | "Inactive";
-export type VisualManagementMeetingFrequency = "Daily" | "Every Shift" | "Weekly" | "Custom";
+export type VisualManagementMeetingFrequency = "Daily" | "Every Shift" | "Weekly" | "Monthly" | "Custom";
 
 export interface VisualManagementTierConfiguration {
   id: string;
@@ -77,7 +77,7 @@ export const DEFAULT_VISUAL_MANAGEMENT_KPI_SECTIONS: VisualManagementKpiSectionC
 const allKpis = DEFAULT_VISUAL_MANAGEMENT_KPI_SECTIONS.map((item) => item.id);
 export const DEFAULT_VISUAL_MANAGEMENT_BOARDS: VisualManagementBoardConfiguration[] = [
   { id: "VM-ZA-T1", name: "Zone A Daily Management", tierId: "tier-1", plantId: "PLANT-EGM", zoneId: "ZONE-A", ownerId: "USR-LAKSHMAN", memberIds: ["USR-LAKSHMAN", "USR-RITIKA", "USR-SIVA-KUMAR", "USR-MANOJ-GURU"], meetingFrequency: "Daily", meetingTime: "08:45", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-09-14T08:55:00+05:30" },
-  { id: "VM-ZB-T1", name: "Zone B Daily Management", tierId: "tier-1", plantId: "PLANT-EGM", zoneId: "ZONE-B", ownerId: "USR-LAKSHMAN", memberIds: ["USR-LAKSHMAN", "USR-MADAVAN", "USR-MEENA", "USR-ANAND"], meetingFrequency: "Daily", meetingTime: "09:00", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-09-14T08:55:00+05:30" },
+  { id: "VM-ZB-T1", name: "Zone B Production Review", tierId: "tier-1", plantId: "PLANT-EGM", zoneId: "ZONE-B", ownerId: "USR-MADAVAN", memberIds: ["USR-MADAVAN", "USR-MEENA", "USR-ANAND"], meetingFrequency: "Weekly", meetingTime: "09:00", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-10-05T08:55:00+05:30" },
   { id: "VM-ZC-T1", name: "Zone C Daily Management", tierId: "tier-1", plantId: "PLANT-EGM", zoneId: "ZONE-C", ownerId: "USR-RUMESH", memberIds: ["USR-RUMESH", "USR-SIVA-KUMAR", "USR-MEENA"], meetingFrequency: "Daily", meetingTime: "09:15", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-09-14T08:55:00+05:30" },
   { id: "VM-ZD-T1", name: "Zone D Daily Management", tierId: "tier-1", plantId: "PLANT-EGM", zoneId: "ZONE-D", ownerId: "USR-RITIKA", memberIds: ["USR-RITIKA", "USR-MANOJ-GURU", "USR-ANAND"], meetingFrequency: "Daily", meetingTime: "09:30", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-09-14T08:55:00+05:30" },
   { id: "VM-PLANT-T2", name: "Plant Operations", tierId: "tier-2", plantId: "PLANT-EGM", ownerId: "USR-RUMESH", memberIds: ["USR-RUMESH", "USR-LAKSHMAN", "USR-RITIKA", "USR-SIVA-KUMAR"], meetingFrequency: "Daily", meetingTime: "10:30", kpiSectionIds: allKpis, status: "Active", createdAt: STAMP, updatedAt: "2026-09-14T08:55:00+05:30" },

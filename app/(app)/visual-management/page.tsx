@@ -1,5 +1,5 @@
-import VisualManagementPage from "@/features/visual-management/visual-management-page";
+import DailyManagementOverviewPage from "@/features/visual-management/daily-management-overview-page";
 
 export default function Page() {
-  return <VisualManagementPage />;
+  return <DailyManagementOverviewPage />;
 }

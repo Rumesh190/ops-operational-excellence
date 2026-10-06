@@ -34,10 +34,9 @@ describe("Visual Management active-scope cleanup", () => {
     const route = read("app/(app)/visual-management/escalations/page.tsx");
     const settings = read("app/(app)/visual-management/settings/page.tsx");
     expect(route).toContain('permanentRedirect("/visual-management")');
-    expect(settings).toContain("KPI Configuration");
-    expect(settings).toContain("Boards");
-    expect(settings).toContain("Tier Structure");
-    expect(settings).toContain("KPI Sections");
+    expect(settings).toContain("VisualManagementBoardsSettingsPage");
+    expect(settings).not.toMatch(/KPI Configuration|Tier Structure|KPI Sections/);
+    for (const page of ["kpi-configuration", "kpi-sections", "tiers", "boards"]) expect(read(`app/(app)/visual-management/settings/${page}/page.tsx`)).toContain('redirect("/visual-management/settings")');
     expect(settings).not.toMatch(/Escalation & Decision|Pending Decisions/);
   });
 
@@ -54,13 +53,13 @@ describe("Visual Management active-scope cleanup", () => {
   it("preserves KPI deviation, corrective Action choices, history, trends, and snapshots", () => {
     const configured = read("features/visual-management/configured-kpi-board.tsx");
     const execution = read("features/visual-management/kpi-execution-store.ts");
-    const board = read("features/visual-management/board-detail-page.tsx");
     expect(configured).toContain("Corrective Action needed?");
     expect(configured).toContain("Why is corrective action not required?");
     expect(configured).toContain("CreateLinkedActionDialog");
     expect(configured).toContain("linkDeviationAction");
     expect(execution).toContain("KpiDeviation");
     expect(execution).toContain("MeetingKpiReviewSnapshot");
-    expect(board).toContain('value="trends"');
+    expect(configured).toContain('aria-label="KPI trend"');
+    expect(configured).toContain("Immutable board-specific actuals");
   });
 });

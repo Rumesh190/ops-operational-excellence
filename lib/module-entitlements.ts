@@ -68,7 +68,8 @@ function mapSnapshot() { load(); return accessByOrganization; }
 
 export function useOrganizationAccess(organizationId = DEMO_ORGANIZATION.id) {
   const map = useSyncExternalStore(subscribe, mapSnapshot, () => DEFAULT_ACCESS);
-  return map[organizationId] ?? DEFAULT_MODULE_ENTITLEMENTS;
+  const access = map[organizationId] ?? DEFAULT_MODULE_ENTITLEMENTS;
+  return { ...access, redFlag: false };
 }
 
 export function getOrganizationAccess(organizationId = DEMO_ORGANIZATION.id) {

@@ -92,14 +92,11 @@ describe("Red Tag V2 lifecycle commands", () => {
     expect(store.recordRedTagDecision(tag.id, { decision: "scrap", comments: "Beyond repair" }, creator)).toBeUndefined();
     expect(store.recordRedTagDecision(tag.id, { decision: "scrap", comments: "Beyond repair" }, reviewer)).toMatchObject({ status: "Decision Made", decisionRecord: { type: "scrap", decidedByUserId: reviewer.id } });
     expect(store.startRedTagDisposition(tag.id, { responsiblePersonId: "", responsiblePersonName: "", targetDate: "" }, reviewer)).toBeUndefined();
-    expect(store.startRedTagDisposition(tag.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-09-30" }, reviewer)).toMatchObject({ status: "Disposition In Progress", dispositionDetails: { decision: "scrap", responsiblePersonId: reviewer.id } });
+    expect(store.startRedTagDisposition(tag.id, { responsiblePersonId: reviewer.id, responsiblePersonName: reviewer.name, targetDate: "2026-09-30", executionNotes: "Move to approved scrap holding" }, reviewer)).toMatchObject({ status: "Disposition In Progress", dispositionDetails: { decision: "scrap", responsiblePersonId: reviewer.id } });
     expect(store.verifyRedTagDisposition(tag.id, { passed: true, details: "Too early" }, reviewer)).toBeUndefined();
-    expect(store.completeRedTagDisposition(tag.id, { evidence, completionNotes: "Disposed as approved", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Awaiting Verification", dispositionDetails: { completedByUserId: reviewer.id } });
-
-    expect(store.verifyRedTagDisposition(tag.id, { passed: false, details: "Item remains in area" }, reviewer)).toMatchObject({ status: "Awaiting Verification", closure: { verificationResult: "Failed" } });
+    expect(store.completeRedTagDisposition(tag.id, { evidence, completionNotes: "Disposed as approved", responsibleConfirmed: true }, reviewer)).toMatchObject({ status: "Closed", dispositionDetails: { completedByUserId: reviewer.id } });
+    expect(store.verifyRedTagDisposition(tag.id, { passed: false, details: "Item remains in area" }, reviewer)).toBeUndefined();
     expect(store.closeRedTag(tag.id, reviewer)).toBeUndefined();
-    expect(store.verifyRedTagDisposition(tag.id, { passed: true, details: "Item removed and area clear" }, reviewer)).toMatchObject({ closure: { verificationResult: "Passed", verifiedByUserId: reviewer.id } });
-    expect(store.closeRedTag(tag.id, reviewer)).toMatchObject({ status: "Closed", closure: { closedByUserId: reviewer.id } });
 
     expect(store.submitRedTagForReview(tag.id, { reviewerId: reviewer.id, reviewerName: reviewer.name }, creator)).toBeUndefined();
     expect(store.recordRedTagDecision(tag.id, { decision: "keep" }, reviewer)).toBeUndefined();
@@ -111,10 +108,11 @@ describe("Red Tag V2 lifecycle commands", () => {
     expect(saved.review?.reviewedAt).toBe("2026-09-22T05:00:00.000Z");
     expect(saved.decisionRecord?.decidedAt).toBe("2026-09-22T05:00:00.000Z");
     expect(saved.dispositionDetails?.completedAt).toBe("2026-09-22T05:00:00.000Z");
-    expect(saved.closure?.closedAt).toBe("2026-09-22T05:00:00.000Z");
+    expect(saved.closedAt).toBe("2026-09-22T05:00:00.000Z");
+    expect(saved.closure).toBeUndefined();
     expect(saved.history.map((item) => item.type)).toEqual([
       "created", "review_submitted", "reviewed", "decision_recorded", "disposition_started",
-      "disposition_completed", "awaiting_verification", "verification_failed", "verified", "closed",
+      "disposition_completed", "closed",
     ]);
     expect(saved.history.every((item) => item.actor && item.at)).toBe(true);
   });

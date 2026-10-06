@@ -50,7 +50,7 @@ function board(input: Pick<VisualManagementBoard, "id" | "name" | "zone" | "tier
 
 export const VISUAL_MANAGEMENT_SEED_BOARDS: VisualManagementBoard[] = [
   board({ id: "VM-ZA-T1", name: "Zone A Daily Management", zone: "Zone A", tier: "Tier 1", owner: PEOPLE.lakshman, members: [PEOPLE.lakshman, PEOPLE.ritika, PEOPLE.siva, PEOPLE.manoj], meetingFrequency: "Daily · 08:45", statuses: { Delivery: "Amber" } }),
-  board({ id: "VM-ZB-T1", name: "Zone B Daily Management", zone: "Zone B", tier: "Tier 1", owner: PEOPLE.lakshman, members: [PEOPLE.lakshman, PEOPLE.madavan, PEOPLE.meena, PEOPLE.anand], meetingFrequency: "Daily · 09:00", statuses: { Quality: "Red", Delivery: "Amber" } }),
+  board({ id: "VM-ZB-T1", name: "Zone B Production Review", zone: "Zone B", tier: "Tier 1", owner: PEOPLE.madavan, members: [PEOPLE.madavan, PEOPLE.meena, PEOPLE.anand], meetingFrequency: "Weekly · 09:00", statuses: { Quality: "Red", Delivery: "Amber" } }),
   board({ id: "VM-ZC-T1", name: "Zone C Daily Management", zone: "Zone C", tier: "Tier 1", owner: PEOPLE.rumesh, members: [PEOPLE.rumesh, PEOPLE.siva, PEOPLE.meena], meetingFrequency: "Daily · 09:15", statuses: { People: "Amber" } }),
   board({ id: "VM-ZD-T1", name: "Zone D Daily Management", zone: "Zone D", tier: "Tier 1", owner: PEOPLE.ritika, members: [PEOPLE.ritika, PEOPLE.manoj, PEOPLE.anand], meetingFrequency: "Daily · 09:30" }),
   board({ id: "VM-PLANT-T2", name: "Plant Operations", tier: "Tier 2", owner: PEOPLE.rumesh, members: [PEOPLE.rumesh, PEOPLE.lakshman, PEOPLE.ritika, PEOPLE.siva], meetingFrequency: "Daily · 10:30", statuses: { Delivery: "Amber", Cost: "Amber" } }),
@@ -74,7 +74,7 @@ function attendance(people: readonly VisualManagementPerson[], absentIds: string
 }
 
 const SEED_MEETINGS: VisualManagementMeeting[] = [
-  { id: "VMM-2026-014", boardId: "VM-ZB-T1", boardName: "Zone B Daily Management", plant: "Egmore Plant", zone: "Zone B", tier: "Tier 1", lead: PEOPLE.lakshman, participants: attendance(VISUAL_MANAGEMENT_SEED_BOARDS[1].members, [PEOPLE.anand.id]), startedAt: "2026-09-14T09:00:00+05:30", kpiEntries: createDefaultKpiEntries({ Quality: "Red", Delivery: "Amber" }), topicIds: ["VMT-014-01"], decisionIds: [], actionIds: [], redFlagIds: [], continuousImprovementIds: [], gembaIds: [], escalationIds: ["VME-2026-004"], status: "In Progress" },
+  { id: "VMM-2026-014", boardId: "VM-ZB-T1", boardName: "Zone B Production Review", plant: "Egmore Plant", zone: "Zone B", tier: "Tier 1", lead: PEOPLE.madavan, participants: attendance(VISUAL_MANAGEMENT_SEED_BOARDS[1].members, [PEOPLE.anand.id]), startedAt: "2026-09-14T09:00:00+05:30", kpiEntries: createDefaultKpiEntries({ Quality: "Red", Delivery: "Amber" }), topicIds: ["VMT-014-01"], decisionIds: [], actionIds: [], redFlagIds: [], continuousImprovementIds: [], gembaIds: [], escalationIds: ["VME-2026-004"], status: "In Progress" },
   { id: "VMM-2026-013", boardId: "VM-ZA-T1", boardName: "Zone A Daily Management", plant: "Egmore Plant", zone: "Zone A", tier: "Tier 1", lead: PEOPLE.lakshman, participants: attendance(VISUAL_MANAGEMENT_SEED_BOARDS[0].members), startedAt: "2026-09-14T08:45:00+05:30", completedAt: "2026-09-14T09:02:00+05:30", kpiEntries: createDefaultKpiEntries({ Delivery: "Amber" }), topicIds: ["VMT-013-01"], decisionIds: ["VMD-013-01"], actionIds: ["ACT-VM-001"], redFlagIds: [], continuousImprovementIds: [], gembaIds: [], escalationIds: [], status: "Completed" },
   { id: "VMM-2026-012", boardId: "VM-PLANT-T2", boardName: "Plant Operations", plant: "Egmore Plant", tier: "Tier 2", lead: PEOPLE.rumesh, participants: attendance(VISUAL_MANAGEMENT_SEED_BOARDS[4].members), startedAt: "2026-09-13T10:30:00+05:30", completedAt: "2026-09-13T10:58:00+05:30", kpiEntries: createDefaultKpiEntries({ Safety: "Red", Delivery: "Amber" }), topicIds: ["VMT-012-01", "VMT-012-02"], decisionIds: [], actionIds: [], redFlagIds: ["RF-2026-013"], continuousImprovementIds: ["CI-2026-013"], gembaIds: [], escalationIds: [], status: "Completed" },
   { id: "VMM-2026-010", boardId: "VM-ZA-T1", boardName: "Zone A Daily Management", plant: "Egmore Plant", zone: "Zone A", tier: "Tier 1", lead: PEOPLE.lakshman, participants: attendance(VISUAL_MANAGEMENT_SEED_BOARDS[0].members), startedAt: "2026-09-12T08:45:00+05:30", completedAt: "2026-09-12T09:01:00+05:30", kpiEntries: createDefaultKpiEntries({ Quality: "Amber" }), topicIds: ["VMT-010-02"], decisionIds: [], actionIds: [], redFlagIds: [], continuousImprovementIds: [], gembaIds: [], escalationIds: ["VME-2026-003"], status: "Completed" },
@@ -149,10 +149,11 @@ function uid(prefix: string) {
   return `${prefix}-${suffix}`;
 }
 
-export function startVisualManagementMeeting(boardId: string, actor: VisualManagementPerson) {
+export function startVisualManagementMeeting(boardId: string, actor: VisualManagementPerson, scheduled?: { scheduleId: string; occurrenceDate: string; scheduledTime: string; durationMinutes: number; attendees: VisualManagementParticipant[] }) {
   const current = getVisualManagementState();
   const active = current.meetings.find((item) => item.boardId === boardId && item.status === "In Progress");
   if (active) return active;
+  if (scheduled && current.meetings.some((item) => item.scheduleId === scheduled.scheduleId && item.occurrenceDate === scheduled.occurrenceDate)) return null;
   const selected = current.boards.find((item) => item.id === boardId);
   if (!selected || selected.status !== "Active") return null;
   const year = new Date().getFullYear();
@@ -165,7 +166,11 @@ export function startVisualManagementMeeting(boardId: string, actor: VisualManag
     zone: selected.zone,
     tier: selected.tier,
     lead: actor.id ? actor : selected.owner,
-    participants: attendance(selected.members),
+    participants: scheduled ? scheduled.attendees.map((person) => ({ ...person, attendance: "Absent", expected: true })) : attendance(selected.members).map((person) => ({ ...person, expected: true })),
+    scheduleId: scheduled?.scheduleId,
+    occurrenceDate: scheduled?.occurrenceDate,
+    scheduledTime: scheduled?.scheduledTime,
+    scheduledDurationMinutes: scheduled?.durationMinutes,
     startedAt: new Date().toISOString(),
     kpiEntries: selected.sections.map((item) => ({ ...item, evidence: item.evidence?.map((evidence) => ({ ...evidence })) })),
     configuredKpiReviews: createMeetingKpiReviewSnapshots(`VMM-${year}-${String(number).padStart(3, "0")}`, selected.id, actor.id),
@@ -184,12 +189,25 @@ function updateMeeting(id: string, updater: (meeting: VisualManagementMeeting) =
 }
 
 export function setMeetingAttendance(meetingId: string, personId: string, attendanceValue: VisualManagementParticipant["attendance"]) {
+  if (getVisualManagementMeeting(meetingId)?.status !== "In Progress") return null;
   return updateMeeting(meetingId, (meeting) => ({ ...meeting, participants: meeting.participants.map((person) => person.id === personId ? { ...person, attendance: attendanceValue } : person) }));
 }
 
-export function addMeetingGuest(meetingId: string, name: string) {
-  if (!name.trim()) return null;
-  return updateMeeting(meetingId, (meeting) => ({ ...meeting, participants: [...meeting.participants, { id: uid("GUEST"), name: name.trim(), attendance: "Present", guest: true }] }));
+export function addMeetingAttendee(meetingId: string, person: VisualManagementPerson) {
+  const meeting = getVisualManagementMeeting(meetingId);
+  if (meeting?.status !== "In Progress" || !person.id || !person.name.trim() || meeting.participants.some((entry) => entry.id === person.id)) return null;
+  return updateMeeting(meetingId, (current) => ({ ...current, participants: [...current.participants, { ...person, attendance: "Present", expected: false, manuallyAdded: true }] }));
+}
+
+export function addMeetingGuest(meetingId: string, name: string, companyOrRole?: string) {
+  if (!name.trim() || getVisualManagementMeeting(meetingId)?.status !== "In Progress") return null;
+  return updateMeeting(meetingId, (meeting) => ({ ...meeting, participants: [...meeting.participants, { id: uid("GUEST"), name: name.trim(), companyOrRole: companyOrRole?.trim() || undefined, attendance: "Present", guest: true, expected: false, manuallyAdded: true }] }));
+}
+
+export function removeMeetingAttendee(meetingId: string, personId: string) {
+  const meeting = getVisualManagementMeeting(meetingId);
+  if (meeting?.status !== "In Progress" || !meeting.participants.some((person) => person.id === personId && (person.manuallyAdded || person.guest))) return null;
+  return updateMeeting(meetingId, (current) => ({ ...current, participants: current.participants.filter((person) => person.id !== personId) }));
 }
 
 export function updateMeetingKpi(meetingId: string, section: VisualManagementKpiSection, values: Partial<VisualManagementKpiEntry>) {
@@ -307,7 +325,7 @@ export function linkEscalationAction(escalationId: string, actionId: string) {
 }
 
 export function completeVisualManagementMeeting(meetingId: string) {
-  return updateMeeting(meetingId, (meeting) => ({ ...meeting, status: "Completed", completedAt: new Date().toISOString() }));
+  return updateMeeting(meetingId, (meeting) => ({ ...meeting, configuredKpiReviews: createMeetingKpiReviewSnapshots(meeting.id, meeting.boardId, meeting.lead.id), status: "Completed", completedAt: new Date().toISOString() }));
 }
 
 export function meetingDurationMinutes(meeting: VisualManagementMeeting, now = new Date()) {

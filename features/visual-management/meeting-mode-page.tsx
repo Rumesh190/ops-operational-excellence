@@ -33,6 +33,7 @@ import {
 } from "./visual-management-store";
 import type { VisualManagementKpiSection, VisualManagementMeeting, VisualManagementPerson, VisualManagementTopic } from "./types";
 import { KPI_BUCKET_LABELS } from "./kpi-configuration";
+import { DailyManagementMeetingWorkspace } from "./daily-management-meeting-workspace";
 
 export default function MeetingModePage({ boardId }: { boardId: string }) {
   const state = useVisualManagementStore();
@@ -42,7 +43,7 @@ export default function MeetingModePage({ boardId }: { boardId: string }) {
   const board = candidate && canViewVisualManagementBoard(candidate, currentUser, adminUser?.roles) ? candidate : undefined;
   const activeMeeting = state.meetings.find((item) => item.boardId === boardId && item.status === "In Progress");
   if (!board) return <div className="p-8"><p className="text-sm">Board not found.</p><Button className="mt-4" variant="outline" nativeButton={false} render={<Link href="/visual-management/boards" />}>Back to Boards</Button></div>;
-  if (activeMeeting) return <LiveMeeting meeting={activeMeeting} />;
+  if (activeMeeting) return <DailyManagementMeetingWorkspace meeting={activeMeeting} />;
   if (board.status !== "Active") return <div className="p-8"><p className="text-sm">This Board is inactive and cannot start a new meeting.</p><Button className="mt-4" variant="outline" nativeButton={false} render={<Link href={`/visual-management/boards/${board.id}`} />}>Back to Board</Button></div>;
   return <MeetingConfirmation boardId={boardId} />;
 }
@@ -56,7 +57,7 @@ function MeetingConfirmation({ boardId }: { boardId: string }) {
   return <div className="fixed inset-0 z-[90] overflow-y-auto bg-background"><header className="sticky top-0 z-10 border-b bg-background/95 px-4 py-3 backdrop-blur sm:px-6"><div className="mx-auto flex max-w-5xl items-center gap-3"><Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={`/visual-management/boards/${board.id}`} />} aria-label="Exit meeting mode"><ArrowLeft className="size-4" /></Button><div><p className="text-sm font-semibold">Prepare Meeting</p><p className="text-xs text-muted-foreground">Visual Management · {board.tier}</p></div></div></header><main className="mx-auto grid max-w-3xl gap-5 p-4 sm:p-8"><div className="text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary"><CirclePlay className="size-6" /></span><h1 className="mt-4 text-2xl font-semibold">{board.name}</h1><p className="mt-1 text-sm text-muted-foreground">Confirm the meeting details. Known board data is already populated.</p></div><Card className="gap-0"><CardContent className="grid gap-5 p-5 sm:grid-cols-2"><Meta label="Board" value={board.name} /><Meta label="Plant / Zone" value={`${board.plant} / ${board.zone ?? "All zones"}`} /><Meta label="Tier" value={board.tier} /><Meta label="Date / Start" value={new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date())} /><label className="grid gap-2 text-sm font-medium sm:col-span-2">Meeting lead<Select value={lead.id} onValueChange={(value) => setLeadId(value ?? board.owner.id)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{board.members.map((person) => <SelectItem key={person.id} value={person.id}>{person.name}</SelectItem>)}</SelectContent></Select></label><div className="sm:col-span-2"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expected participants</p><div className="mt-2 flex flex-wrap gap-2">{board.members.map((person) => <Badge key={person.id} variant="secondary">{person.name}</Badge>)}</div></div></CardContent></Card><Button className="min-h-12" onClick={() => startVisualManagementMeeting(board.id, lead)}><CirclePlay className="size-4" />Start Meeting Mode</Button></main></div>;
 }
 
-function LiveMeeting({ meeting }: { meeting: VisualManagementMeeting }) {
+export function LegacyLiveMeeting({ meeting }: { meeting: VisualManagementMeeting }) {
   const state = useVisualManagementStore();
   const actions = useActionStore();
   const access = useModuleEntitlements();

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { getRedTagQrTarget, getRedTagRecordPath } from "@/features/five-s/red-tag/qr";
+import { getCreateRedTagPath, getCreateRedTagQrTarget, getRedTagQrTarget, getRedTagRecordPath } from "@/features/five-s/red-tag/qr";
 
 describe("Red Tag V2 canonical QR identity", () => {
   it("builds the record locator from only the stable RT ID", () => {
@@ -56,5 +56,26 @@ describe("Red Tag QR and physical print UI", () => {
     expect(source).toContain("LinkedActionSection");
     expect(source).toContain("`/5s/red/${tag.id}/print`");
     expect(getRedTagRecordPath("RT-EGM-ZA-001")).toBe("/5s/red/RT-EGM-ZA-001");
+  });
+});
+
+describe("reusable Create Red Tag QR", () => {
+  const source = readFileSync(resolve(process.cwd(), "features/five-s/red-tag/red-tag-module.tsx"), "utf8");
+
+  it("targets the same canonical create form with an encoded stable plant reference", () => {
+    expect(getCreateRedTagPath("PLANT-EGM")).toBe("/5s/red/create?plant=PLANT-EGM");
+    expect(getCreateRedTagQrTarget("PLANT A/01", "https://ops.example.com")).toBe("https://ops.example.com/5s/red/create?plant=PLANT%20A%2F01");
+    expect(getCreateRedTagPath()).toBe("/5s/red/create");
+  });
+
+  it("reuses canonical creation and validates plant context against organization data", () => {
+    expect(source).toContain("const resolvedPlant = organization.plants.find");
+    expect(source).toContain("const plantName = resolvedPlant?.name ?? user.plant");
+    expect(source).toContain("createAndSubmitRedTagV2");
+    expect(source).toContain("Scan to create a Red Tag");
+    expect(source).toContain("Number of QR labels");
+    expect(source).toContain("quantity: String(qrQuantity)");
+    expect(source).toContain("Array.from({ length: quantity }");
+    expect(source).not.toContain("createQrRedTag");
   });
 });

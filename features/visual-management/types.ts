@@ -43,6 +43,9 @@ export interface VisualManagementBoard {
 export interface VisualManagementParticipant extends VisualManagementPerson {
   attendance: "Present" | "Absent";
   guest?: boolean;
+  companyOrRole?: string;
+  expected?: boolean;
+  manuallyAdded?: boolean;
 }
 
 export type VisualManagementFollowUpType =
@@ -92,6 +95,10 @@ export interface VisualManagementMeeting {
   tier: VisualManagementTier;
   lead: VisualManagementPerson;
   participants: VisualManagementParticipant[];
+  scheduleId?: string;
+  occurrenceDate?: string;
+  scheduledTime?: string;
+  scheduledDurationMinutes?: number;
   startedAt: string;
   completedAt?: string;
   kpiEntries: VisualManagementKpiEntry[];

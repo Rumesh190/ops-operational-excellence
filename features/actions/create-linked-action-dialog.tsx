@@ -30,12 +30,25 @@ export interface LinkedActionContext {
   zone: string;
   location: string;
   evidence: MyActionEvidence[];
+  /** Presentation-only count for source-owned evidence that is linked, not copied into the Action. */
+  sourceEvidenceCount?: number;
   defaultPriority?: MyActionPriority;
   hidePriority?: boolean;
   defaultResponsibleId?: string;
   defaultDueDate?: string;
   visualManagementSource?: VisualManagementActionSource;
 }
+
+export function normalizeActionUserId(value: string) {
+  return value.trim().toUpperCase();
+}
+
+export function findEligibleActionMember(members: Array<{ id: string; name: string }>, userId: string) {
+  const normalized = normalizeActionUserId(userId);
+  return members.find((member) => normalizeActionUserId(member.id) === normalized);
+}
+
+export function createCanonicalLinkedAction(context: LinkedActionContext, responsibleId: string, actor: { id: string; name: string }, category: string, priority: MyActionPriority = context.defaultPriority ?? "Medium") { const zone = getFiveSZoneConfiguration(context.zone); const responsible = zone ? findEligibleActionMember(zone.members, responsibleId) : undefined; if (!zone || !responsible) throw new Error("Select an eligible responsible person."); const dueDate = context.defaultDueDate ?? getPriorityDueDate(priority); return createAction({ title: context.title, description: context.description, source: context.source, sourceTitle: context.sourceTitle ?? context.sourceId, sourceModule: context.sourceModule, sourceId: context.sourceId, sourceLabel: context.source, sourceLocation: `${context.plant} · ${context.zone} · ${context.location}`, sourceObservationId: context.sourceObservationId, sourceObservation: context.sourceObservation, visualManagementSource: context.visualManagementSource, originalFinding: context.sourceObservation, plant: context.plant, department: zone.department, area: context.zone, zoneId: context.zone, assignedTo: responsible.name, responsiblePersonId: responsible.id, responsiblePersonName: responsible.name, zoneLeaderId: zone.leaderId, zoneLeaderName: zone.leader, assignedByUserId: actor.id, assignedByName: actor.name, assignedAt: new Date().toISOString(), createdByUserId: actor.id, createdByName: actor.name, auditor: actor.name, status: "Assigned", priority, dueDate, actionCategory: category, issueEvidence: context.evidence }); }
 
 export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreated }: {
   open: boolean;
@@ -52,51 +65,23 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const zone = context ? getFiveSZoneConfiguration(context.zone) : undefined;
+  const currentMember = zone ? findEligibleActionMember(zone.members, currentUser.id) : undefined;
+  const sourceEvidenceCount = context?.sourceEvidenceCount ?? context?.evidence.length ?? 0;
   const effectivePriority = context?.hidePriority
     ? context.defaultPriority ?? "Low"
     : actionPriorities.some((item) => item.id === priority) ? priority : actionPriorities[0]?.id ?? priority;
   const dueDate = context?.defaultDueDate ?? getPriorityDueDate(effectivePriority);
 
   function submit() {
-    if (!context || !zone || !category || !responsibleId || busy) return;
-    const responsible = zone.members.find((member) => member.id === responsibleId);
+    if (busy) return;
+    if (!context || !zone) return setError("This source does not have an eligible Action zone.");
+    if (!category) return setError("Action category is required.");
+    if (!responsibleId) return setError("Responsible person is required.");
+    const responsible = findEligibleActionMember(zone.members, responsibleId);
     if (!responsible) return;
     setBusy(true); setError("");
     try {
-      const action = createAction({
-      title: context.title,
-      description: context.description,
-      source: context.source,
-      sourceTitle: context.sourceTitle ?? context.sourceId,
-      sourceModule: context.sourceModule,
-      sourceId: context.sourceId,
-      sourceLabel: context.source,
-      sourceLocation: `${context.plant} · ${context.zone} · ${context.location}`,
-      sourceObservationId: context.sourceObservationId,
-      sourceObservation: context.sourceObservation,
-      visualManagementSource: context.visualManagementSource,
-      originalFinding: context.sourceObservation,
-      plant: context.plant,
-      department: zone.department,
-      area: context.zone,
-      zoneId: context.zone,
-      assignedTo: responsible.name,
-      responsiblePersonId: responsible.id,
-      responsiblePersonName: responsible.name,
-      zoneLeaderId: zone.leaderId,
-      zoneLeaderName: zone.leader,
-      assignedByUserId: currentUser.id,
-      assignedByName: currentUser.name,
-      assignedAt: new Date().toISOString(),
-      createdByUserId: currentUser.id,
-      createdByName: currentUser.name,
-      auditor: currentUser.name,
-      status: "Assigned",
-      priority: effectivePriority,
-      dueDate,
-      actionCategory: category,
-      issueEvidence: context.evidence,
-      });
+      const action = createCanonicalLinkedAction(context, responsible.id, currentUser, category, effectivePriority);
       if (onCreated(action) === false) {
         const rolledBack = rollbackCreatedAction(action.id);
         throw new Error(rolledBack
@@ -122,20 +107,20 @@ export function CreateLinkedActionDialog({ open, onOpenChange, context, onCreate
             <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant={context.source === "Red Flag" ? "danger" : "info"}>{context.source}</Badge>{context.sourceRecordLabel ? <span className="text-xs font-medium text-muted-foreground">{context.sourceRecordLabel}</span> : <><span className="font-mono text-xs text-muted-foreground">{context.sourceId}</span>{context.sourceObservationId && <span className="font-mono text-xs text-muted-foreground">{context.sourceObservationId}</span>}</>}{context.defaultPriority && <Badge variant={context.defaultPriority === "Critical" || context.defaultPriority === "High" ? "danger" : context.defaultPriority === "Medium" ? "warning" : "secondary"}>{context.defaultPriority} context</Badge>}</div>
             <p className="mt-2 text-sm font-semibold">{context.title}</p>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{context.description}</p>
-            <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Link2 className="size-3.5" />{context.zone} · {context.location} · {context.evidence.length} evidence photo{context.evidence.length === 1 ? "" : "s"}</p>
+            <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Link2 className="size-3.5" />{context.zone} · {context.location} · {sourceEvidenceCount} evidence photo{sourceEvidenceCount === 1 ? "" : "s"}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {!context.hidePriority && <Field label="Priority *"><Select value={effectivePriority} onValueChange={(value) => setPriority((value ?? actionPriorities[0]?.id ?? "Medium") as MyActionPriority)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{actionPriorities.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>}
             <Field label="Due Date" derived><Input type="date" value={dueDate} disabled /></Field>
             <Field label="Action Category *"><Select value={category} onValueChange={(value) => setCategory(value ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{actionCategories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></Field>
-            <Field label="Action Owner *"><Select value={responsibleId} onValueChange={(value) => setResponsibleId(value ?? "")}><SelectTrigger className="w-full"><SelectValue placeholder="Select zone member" /></SelectTrigger><SelectContent>{zone?.members.map((member) => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Responsible *"><div className="grid gap-1.5"><div className="flex gap-2"><Button type="button" disabled={!currentMember} variant={currentMember && normalizeActionUserId(responsibleId) === normalizeActionUserId(currentMember.id) ? "default" : "outline"} onClick={() => { if (!currentMember) return; setResponsibleId(currentMember.id); setError(""); }}>Assign to me</Button><Select value={responsibleId} onValueChange={(value) => { setResponsibleId(value ?? ""); setError(""); }}><SelectTrigger className="min-w-0 flex-1"><SelectValue placeholder="Select member" /></SelectTrigger><SelectContent>{zone?.members.map((member) => <SelectItem key={member.id} value={member.id}>{member.name} · {zone.name} · Member</SelectItem>)}</SelectContent></Select></div>{!currentMember && context && <p className="text-xs text-muted-foreground">Assign to me unavailable — you are not a member of {context.zone}.</p>}</div></Field>
             <Field label="Zone Leader" derived><Input value={zone?.leader ?? "—"} disabled /></Field>
             <Field label="Assigned By" derived><Input value={currentUser.name} disabled /></Field>
           </div>
           {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
         </div>
       </div>}
-      <DialogFooter className="shrink-0 sm:-mx-8 sm:-mb-8 sm:p-8"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!context || !category || !responsibleId || busy} onClick={submit}>{busy ? "Creating..." : "Create Action"}</Button></DialogFooter>
+      <DialogFooter className="shrink-0 sm:-mx-8 sm:-mb-8 sm:p-8"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={busy} onClick={submit}>{busy ? "Creating..." : "Create Action"}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

@@ -18,7 +18,7 @@ import { useAdminUsers } from "@/features/five-s/administration/store";
 import { canCreateImprovement } from "@/features/five-s/continuous-improvement/access";
 import { useImprovements } from "@/features/five-s/continuous-improvement/store";
 import { useGembaStore } from "@/features/gemba/gemba-store";
-import { canRaiseRedFlag } from "@/features/red-flag/red-flag-access";
+import { canCreateRedTag } from "@/features/five-s/red-tag/access";
 import { useRedFlagStore } from "@/features/red-flag/red-flag-store";
 import { useVisualManagementStore } from "@/features/visual-management/visual-management-store";
 import { AnalyticsView, useAnalyticsDashboardModel } from "@/features/analytics/analytics-dashboard-page";
@@ -48,7 +48,7 @@ const DASHBOARD_TABS = [
 
 const CREATE_TARGETS = [
   { id: "gemba", label: "Start Gemba Walk", href: "/gemba/new" },
-  { id: "redFlag", label: "Raise Red Flag", href: "/red-flag/new" },
+  { id: "redTag", label: "Create Red Tag", href: "/5s/red/create" },
   { id: "continuousImprovement", label: "Create Improvement", href: "/continuous-improvement/new" },
   { id: "audit", label: "Start Audit", href: "/audits" },
   { id: "actions", label: "Create Action", href: "/actions" },
@@ -209,7 +209,7 @@ export default function OpsDashboardPage({ initialView = "overview", initialModu
 
   const authorizedCreateTargets = {
     gemba: !currentUser.isSuperAdmin && Boolean(adminUser?.status === "Active" && adminUser.roles.some((role) => role === "Admin" || role === "Auditor")),
-    redFlag: canRaiseRedFlag(adminUser, currentUser),
+    redTag: canCreateRedTag(adminUser),
     continuousImprovement: canCreateImprovement(adminUser, currentUser),
     audit: !currentUser.isSuperAdmin && hasPermission(adminUser, "audits.create"),
     actions: !currentUser.isSuperAdmin && hasPermission(adminUser, "actions.create"),

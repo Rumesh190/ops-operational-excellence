@@ -1,5 +1,3 @@
-import { VisualManagementKpiSettingsPage } from "@/features/settings/visual-management-settings-pages";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <VisualManagementKpiSettingsPage />;
-}
+export default function Page() { redirect("/visual-management/settings"); }

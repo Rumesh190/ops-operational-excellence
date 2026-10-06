@@ -22,8 +22,7 @@ export interface ActionSourceDefinition {
 
 export const ACTION_SOURCE_CONFIG: readonly ActionSourceDefinition[] = [
   { id: "gemba", label: OPS_SOURCE_LABELS.gemba, icon: Footprints, entitlement: "gemba" },
-  { id: "redFlag", label: OPS_SOURCE_LABELS.redFlag, icon: Flag, entitlement: "redFlag" },
-  { id: "redTag", label: OPS_SOURCE_LABELS.redTag, icon: Tag, entitlement: "redFlag" },
+  { id: "redTag", label: OPS_SOURCE_LABELS.redTag, icon: Tag, entitlement: "redTag" },
   { id: "continuousImprovement", label: OPS_SOURCE_LABELS.continuousImprovement, icon: TrendingUp, entitlement: "continuousImprovement" },
   { id: "audit", label: OPS_SOURCE_LABELS.audit, icon: ClipboardList, entitlement: "audit" },
   { id: "visualManagement", label: OPS_SOURCE_LABELS.visualManagement, icon: Eye, entitlement: "visualManagement" },
@@ -31,6 +30,7 @@ export const ACTION_SOURCE_CONFIG: readonly ActionSourceDefinition[] = [
 ] as const;
 
 const LEGACY_ACTION_SOURCE_CONFIG: readonly ActionSourceDefinition[] = [
+  { id: "redFlag", label: OPS_SOURCE_LABELS.redFlag, icon: Flag },
   { id: "visualImprovement", label: "Legacy Improvement", icon: Eye, entitlement: "visualImprovement" },
 ] as const;
 

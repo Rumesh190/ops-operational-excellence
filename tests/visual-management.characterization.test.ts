@@ -10,8 +10,29 @@ import { VISUAL_MANAGEMENT_INITIAL_STATE } from "@/features/visual-management/vi
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Visual Management module migration", () => {
+  it("exposes only the simplified daily-management IA and redirects advanced settings", () => {
+    const nav = readFileSync(resolve(process.cwd(), "features/visual-management/visual-management-components.tsx"), "utf8");
+    for (const label of ["Overview", "Boards", "Meetings", "Settings"]) expect(nav).toContain(`label: "${label}"`);
+    for (const hidden of ["KPI Configuration", "Tier Structure", "KPI Sections", "Escalations", "Decisions"]) expect(nav).not.toContain(`label: "${hidden}"`);
+    for (const path of ["kpi-configuration", "kpi-sections", "tiers", "boards"]) {
+      expect(readFileSync(resolve(process.cwd(), `app/(app)/visual-management/settings/${path}/page.tsx`), "utf8")).toContain('redirect("/visual-management/settings")');
+    }
+  });
+
+  it("uses the board-first dashboard and one configured metric system", () => {
+    const route = readFileSync(resolve(process.cwd(), "app/(app)/visual-management/page.tsx"), "utf8");
+    const overview = readFileSync(resolve(process.cwd(), "features/visual-management/daily-management-overview-page.tsx"), "utf8");
+    expect(route).toContain("DailyManagementOverviewPage");
+    expect(overview).toContain('>Board<Select');
+    expect(overview).toContain('label="Dashboard period"');
+    expect(overview).toContain('label: "Daily"');
+    expect(overview).toContain('label: "Weekly"');
+    expect(overview).toContain('label: "Monthly"');
+    expect(overview).toContain("<ConfiguredKpiBoard board={board}");
+    expect(overview).not.toContain("board.sections.map");
+  });
   it("registers only the new product module in the operational excellence order", () => {
-    expect(OPERATIONAL_MODULES.map((module) => module.id)).toEqual(["gemba", "redFlag", "redTag", "continuousImprovement", "audit", "visualManagement"]);
+    expect(OPERATIONAL_MODULES.map((module) => module.id)).toEqual(["gemba", "redTag", "continuousImprovement", "audit", "visualManagement"]);
     expect(OPERATIONAL_MODULES.find((module) => module.id === "visualManagement")).toMatchObject({ label: "Visual Management", route: "/visual-management", enabled: true, group: "operations" });
     expect(OPERATIONAL_MODULES.some((module) => (module.id as string) === "visualImprovement")).toBe(false);
     expect(DEFAULT_MODULE_ENTITLEMENTS.visualManagement).toBe(true);
@@ -45,7 +66,7 @@ describe("Visual Management module migration", () => {
     const groups = getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS });
     expect(groups.map((group) => group.id)).toEqual(["operationalExcellence", "execution", "visualize", "analytics"]);
     expect(groups.flatMap((group) => group.items.map((item) => item.id))).toEqual([
-      "gemba", "redFlag", "redTag", "continuousImprovement", "audit", "actions", "visualManagement", "reports",
+      "gemba", "redTag", "continuousImprovement", "audit", "actions", "visualManagement", "reports",
     ]);
 
     expect(getEnabledNavigationGroups({ ...DEFAULT_MODULE_ENTITLEMENTS, gemba: false }).find((group) => group.id === "operationalExcellence")?.items.map((item) => item.id)).not.toContain("gemba");
@@ -60,7 +81,7 @@ describe("Visual Management module migration", () => {
 
   it("provides six manufacturing boards and centralized SQDCP sections", () => {
     expect(VISUAL_MANAGEMENT_INITIAL_STATE.boards.map((board) => board.name)).toEqual([
-      "Zone A Daily Management", "Zone B Daily Management", "Zone C Daily Management", "Zone D Daily Management", "Plant Operations", "Leadership Review",
+      "Zone A Daily Management", "Zone B Production Review", "Zone C Daily Management", "Zone D Daily Management", "Plant Operations", "Leadership Review",
     ]);
     expect(VISUAL_MANAGEMENT_SECTIONS).toEqual(["Safety", "Quality", "Delivery", "Cost", "People"]);
     expect(VISUAL_MANAGEMENT_INITIAL_STATE.boards.every((board) => board.sections.map((entry) => entry.section).join() === VISUAL_MANAGEMENT_SECTIONS.join())).toBe(true);
@@ -119,7 +140,7 @@ describe("Visual Management module migration", () => {
 
   it("uses the new action source and keeps the legacy source out of selectors", () => {
     expect(ACTION_SOURCE_CONFIG.map((source) => source.id)).toEqual([
-      "gemba", "redFlag", "redTag", "continuousImprovement", "audit", "visualManagement", "manual",
+      "gemba", "redTag", "continuousImprovement", "audit", "visualManagement", "manual",
     ]);
   });
 
